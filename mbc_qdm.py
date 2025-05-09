@@ -139,6 +139,12 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
         jitter_factor=0, n_tau=None, ratio_max=2, ratio_max_trace=10*0.05,
         ECBC=False, ties='first', subsample=None, pp_type='linear', debug_name=None): # Added debug_name
     """Quantile Delta Mapping bias correction"""
+
+    # Temporary print to trace debug_name and ratio
+    if debug_name is not None or not ratio: # Print if debug_name is set OR if it's huss (non-ratio)
+        # Try to get variable name if possible, for context, assuming debug_name might hint at it
+        var_context = f" (context: {debug_name})" if debug_name else ""
+        print(f"--- PY QDM CALLED{var_context} --- debug_name: {debug_name}, ratio: {ratio}")
     
     o_c_arr = np.asarray(o_c).copy() # Work on copies
     m_c_arr = np.asarray(m_c).copy()
