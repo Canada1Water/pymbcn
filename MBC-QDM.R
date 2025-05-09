@@ -21,6 +21,12 @@ QDM <-
 function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
          jitter.factor=0, n.tau=NULL, ratio.max=2, ratio.max.trace=10*trace,
          ECBC=FALSE, ties='first', subsample=NULL, pp.type=7, debug_name=NULL){ # Added debug_name
+    
+    # Temporary print to trace debug_name and ratio
+    if(!is.null(debug_name) || ratio == FALSE){ # Print if debug_name is set OR if it's huss (implicit check via ratio)
+        cat(paste("--- R QDM CALLED --- debug_name:", ifelse(is.null(debug_name), "NULL", debug_name), ", ratio:", ratio, "\n"))
+    }
+
     # o = vector of observed values; m = vector of modelled values
     # c = current period;  p = projected period
     # ratio = TRUE --> preserve relative trends in a ratio variable
