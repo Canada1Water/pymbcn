@@ -446,8 +446,8 @@ def MBCr(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
             # print(f"Warning: param length mismatch. Using default for {param}.")
             return [default_val_if_scalar] * length 
 
-    trace_calc_list = ensure_list_len(trace_calc, n_vars, 0.5*0.05)
     trace_list = ensure_list_len(trace, n_vars, 0.05)
+    trace_calc_list = [0.5 * t for t in trace_list] # Derived from trace_list
     jitter_factor_list = ensure_list_len(jitter_factor, n_vars, 0)
     ratio_max_list = ensure_list_len(ratio_max, n_vars, 2)
     ratio_max_trace_list = ensure_list_len(ratio_max_trace, n_vars, 10*0.05)
@@ -685,8 +685,8 @@ def MBCn(o_c, m_c, m_p, iter=30, ratio_seq=None, trace=0.05,
         if np.isscalar(param): return [param] * length
         return list(param)
 
-    trace_calc_list = ensure_list_len(trace_calc, n_vars, 0.5*0.05)
     trace_list = ensure_list_len(trace, n_vars, 0.05)
+    trace_calc_list = [0.5 * t for t in trace_list] # Derived from trace_list
     # jitter_factor for MBCn is for the QDM calls *inside the rotation loop*
     jitter_factor_list_loop = ensure_list_len(jitter_factor, n_vars, 0) 
     ratio_max_list = ensure_list_len(ratio_max, n_vars, 2) # For initial QDM
