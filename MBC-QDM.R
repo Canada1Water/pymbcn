@@ -121,8 +121,7 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
     # Debug for mhat.c path if huss_qdm_debug is active
     if(!is.null(debug_name) && debug_name == "huss_qdm_debug" && !ratio){ # huss is not ratio
         cat("--- QDM DEBUG R (huss_qdm_debug, mhat.c path, ratio=F) ---\n")
-        cat("Input o.c (original to QDM call) [1:5]:\n"); print(head(formals(QDM)$o.c, 5)) # This shows default, not actual. Need to capture actual.
-                                                                                      # The o.c, m.c printed below are after jitter.
+        # The o.c, m.c printed below are after jitter.
         cat("Input o.c (after jitter/runif if any) [1:5]:\n"); print(head(o.c, 5))
         cat("Input m.c (after jitter/runif if any) [1:5]:\n"); print(head(m.c, 5))
         cat("quant.o.c[1:5]:\n"); print(head(quant.o.c, 5))
