@@ -20,11 +20,8 @@ for (i in seq(ncol(cccma$gcm.c))) {
   if (colnames(cccma$gcm.c)[i] == "huss") { 
       current_debug_name <- "huss_qdm_debug"
   }
-  # --- Diagnostic print for current variable and its ratio flag ---
-  cat(paste0("R UNIQDM LOOP - Var: ", colnames(cccma$gcm.c)[i], ", Index: ", i, ", Ratio Flag: ", cccma$ratio.seq[i], ", Debug Name: ", ifelse(is.null(current_debug_name), "NULL", current_debug_name), "\n"))
-  
   fit.qdm <- QDM(o.c = cccma$rcm.c[, i], m.c = cccma$gcm.c[, i], m.p = cccma$gcm.p[, i], 
-                 ratio = cccma$ratio.seq[i], trace = cccma$trace[i], debug_name = current_debug_name)
+                 ratio = cccma$ratio.seq[i], trace = cccma$trace[i]) # Removed debug_name
   qdm.c[, i] <- fit.qdm$mhat.c
   qdm.p[, i] <- fit.qdm$mhat.p
 }
@@ -184,16 +181,5 @@ escore.mbcn <- escore(cccma$rcm.p, mbcn.p, scale.x = TRUE)
 cat('ESS (MBCp):', 1 - escore.mbcp / escore.qdm, '\n')
 cat('ESS (MBCr):', 1 - escore.mbcr / escore.qdm, '\n')
 cat('ESS (MBCn):', 1 - escore.mbcn / escore.qdm, '\n')
-
-# Additional debug for huss in R
-if ("huss" %in% colnames(cccma$gcm.c)) {
-  huss_idx <- which(colnames(cccma$gcm.c) == "huss")
-  cat("\n--- R HUSS QDM.C COMPARISON ---\n")
-  cat("Summary of cccma$rcm.c[,huss]:\n"); print(summary(cccma$rcm.c[,huss_idx])); cat("Head:\n"); print(head(cccma$rcm.c[,huss_idx]))
-  cat("Summary of cccma$gcm.c[,huss]:\n"); print(summary(cccma$gcm.c[,huss_idx])); cat("Head:\n"); print(head(cccma$gcm.c[,huss_idx]))
-  cat("Summary of qdm.c[,huss] (from mhat.c):\n"); print(summary(qdm.c[,huss_idx])); cat("Head:\n"); print(head(qdm.c[,huss_idx]))
-  cat("Are cccma$gcm.c[,huss] and qdm.c[,huss] all.equal? ", all.equal(cccma$gcm.c[,huss_idx], qdm.c[,huss_idx]), "\n")
-  cat("Are cccma$rcm.c[,huss] and cccma$gcm.c[,huss] all.equal? ", all.equal(cccma$rcm.c[,huss_idx], cccma$gcm.c[,huss_idx]), "\n")
-}
 
 ## End(Not run)

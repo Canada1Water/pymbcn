@@ -22,13 +22,6 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
          jitter.factor=0, n.tau=NULL, ratio.max=2, ratio.max.trace=10*trace,
          ECBC=FALSE, ties='first', subsample=NULL, pp.type=7, debug_name=NULL){ # Added debug_name
     
-    # Temporary print to trace debug_name and ratio
-    # Adjusted condition to be more explicit for specific debug names or if ratio is FALSE
-    if( (!is.null(debug_name) && (debug_name == "huss_qdm_debug" || debug_name == "pr_initial_qdm_mp_debug")) || 
-        (is.logical(ratio) && ratio == FALSE) ){
-        cat(paste("--- R QDM CALLED --- debug_name:", ifelse(is.null(debug_name), "NULL", debug_name), ", ratio:", ratio, "\n"))
-    }
-
     # o = vector of observed values; m = vector of modelled values
     # c = current period;  p = projected period
     # ratio = TRUE --> preserve relative trends in a ratio variable
@@ -64,7 +57,6 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
         m.p <- jitter(m.p, jitter.factor)
     }
     
-    m.p.after.runif.first.val.for.debug <- NA # Initialize
     if(ratio){
         epsilon <- .Machine$double.eps
         o.c[o.c < trace.calc] <- runif(sum(o.c < trace.calc), min=epsilon,
@@ -74,9 +66,6 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
         m.p.lt.trace.calc.idx <- which(m.p < trace.calc)
         m.p[m.p.lt.trace.calc.idx] <- runif(sum(m.p < trace.calc), min=epsilon,
                                        max=trace.calc)
-        if(!is.null(debug_name) && length(m.p) > 0) {
-             m.p.after.runif.first.val.for.debug <- m.p[1]
-        }
     }
     # Calculate empirical quantiles
     n <- length(m.p)
@@ -117,45 +106,6 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
     }
     mhat.c <- approx(quant.m.c, quant.o.c, m.c, rule=2,
                      ties='ordered')$y
-
-    # Enhanced HUSS debug block (covers mhat.c and mhat_p, adapts to ratio flag)
-    if(!is.null(debug_name) && debug_name == "huss_qdm_debug"){
-        cat(paste0("--- QDM DEBUG R (huss_qdm_debug, ratio=", ratio, ") ---\n"))
-        
-        cat("--- mhat.c related (for huss) ---\n")
-        cat("Input o.c (after jitter/runif if any) [1:5]:\n"); print(head(o.c, 5))
-        cat("Input m.c (after jitter/runif if any) [1:5]:\n"); print(head(m.c, 5))
-        cat("quant.o.c[1:5]:\n"); print(head(quant.o.c, 5))
-        cat("quant.m.c[1:5]:\n"); print(head(quant.m.c, 5))
-        cat("mhat.c[1:5] (before final trace application if ratio, else final):\n"); print(head(mhat.c, 5))
-        if(ratio) cat("trace value for mhat.c final zeroing:", trace, "\n")
-        if (all(abs(mhat.c) < 1e-9)) {
-             cat("WARNING: All mhat.c values for huss are close to zero (before final trace if ratio).\n")
-        }
-        cat("Summary of mhat.c for huss (before final trace if ratio):\n"); print(summary(mhat.c));
-
-        cat("\n--- mhat.p related (for huss) ---\n")
-        cat("Input m.p (after jitter/runif if any) [1:5]:\n"); print(head(m.p, 5))
-        if(ratio){
-            cat("Original m.p[1] (before any runif for ratio):", m.p.original.first.val.for.debug, "\n")
-            cat("m.p[1] (after runif for ratio, if applicable):", m.p.after.runif.first.val.for.debug, "\n")
-        }
-        cat("quant.m.p[1:5]:\n"); print(head(quant.m.p, 5))
-        cat("tau.m.p[1:5]:\n"); print(head(tau.m.p, 5))
-        cat("approx.t.qmc.val (approx(tau, quant.m.c, tau.m.p))[1:5]:\n"); print(head(approx.t.qmc.val, 5))
-        cat("approx.t.qoc.val (approx(tau, quant.o.c, tau.m.p))[1:5]:\n"); print(head(approx.t.qoc.val, 5))
-        cat("delta.m[1:5]:\n"); print(head(delta.m, 5))
-        cat("mhat.p[1:5] (before final trace application if ratio, else final):\n"); print(head(mhat.p, 5))
-        if(ratio) cat("trace value for mhat.p final zeroing:", trace, "\n")
-    }
-
-    if(!is.null(debug_name) && debug_name == "pr_initial_qdm_mp_debug" && ratio && length(mhat.p) > 0){
-        cat("--- QDM DEBUG R (pr_initial_qdm_mp_debug, ratio=T) ---\n")
-        cat("Original m.p[1]:", m.p.original.first.val.for.debug, "\n")
-        cat("m.p[1] after runif (if applicable):", m.p.after.runif.first.val.for.debug, "\n")
-        cat("mhat.p[1] (before trace application):", mhat.p[1], "\n")
-        cat("trace value:", trace, "\n")
-    }
 
     # For ratio data, set values less than trace to zero
     if(ratio){
@@ -366,15 +316,13 @@ function(o.c, m.c, m.p, iter=20, cor.thresh=1e-4,
     if(!qmap.precalc){
         for(i in seq(ncol(o.c))){
             current_debug_name <- NULL
-            if (ratio.seq[i] && i == which(ratio.seq)[1]) { # Assuming pr is the first ratio var
-                current_debug_name <- "pr_initial_qdm_mp_debug"
-            }
+            # Removed current_debug_name logic
             fit.qmap <- QDM(o.c=o.c[,i], m.c=m.c.qmap.initial[,i], m.p=m.p.qmap.initial[,i], # Use original m.c, m.p
                             ratio=ratio.seq[i], trace.calc=trace.calc[i],
                             trace=trace[i], jitter.factor=jitter.factor[i],
                             n.tau=n.tau, ratio.max=ratio.max[i],
                             ratio.max.trace=ratio.max.trace[i],
-                            subsample=subsample, pp.type=pp.type, debug_name=current_debug_name)
+                            subsample=subsample, pp.type=pp.type) # Removed debug_name
             m.c.qmap[,i] <- fit.qmap$mhat.c # Store QDM'd m.c for final shuffle
             m.p.qmap[,i] <- fit.qmap$mhat.p # Store QDM'd m.p for final shuffle
         }

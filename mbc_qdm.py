@@ -139,20 +139,10 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
         jitter_factor=0, n_tau=None, ratio_max=2, ratio_max_trace=10*0.05,
         ECBC=False, ties='first', subsample=None, pp_type='linear', debug_name=None): # Added debug_name
     """Quantile Delta Mapping bias correction"""
-
-    # Temporary print to trace debug_name and ratio
-    if debug_name is not None or not ratio: # Print if debug_name is set OR if it's huss (non-ratio)
-        # Try to get variable name if possible, for context, assuming debug_name might hint at it
-        var_context = f" (context: {debug_name})" if debug_name else ""
-        print(f"--- PY QDM CALLED{var_context} --- debug_name: {debug_name}, ratio: {ratio}")
     
     o_c_arr = np.asarray(o_c).copy() # Work on copies
     m_c_arr = np.asarray(m_c).copy()
     m_p_arr = np.asarray(m_p).copy()
-
-    m_p_original_first_val_for_debug = np.nan
-    if debug_name is not None and ratio and len(m_p_arr) > 0:
-        m_p_original_first_val_for_debug = m_p_arr[0]
 
     # Determine the actual jitter factor to use (R's 'factor' for jitter function)
     current_r_jitter_factor = jitter_factor
@@ -208,10 +198,6 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
         if count_m_p > 0:
             m_p_arr[m_p_lt_trace_calc_idx] = np.random.uniform(epsilon, trace_calc, count_m_p)
         
-        if debug_name is not None and len(m_p_arr) > 0:
-            m_p_after_runif_first_val_for_debug = m_p_arr[0]
-
-
     # Calculate empirical quantiles
     n = len(m_p_arr)
     if n_tau is None:
@@ -296,48 +282,6 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
     mhat_c = np.interp(m_c_arr, unique_quant_m_c, quant_o_c_for_m_c_interp,
                        left=quant_o_c_for_m_c_interp[0], right=quant_o_c_for_m_c_interp[-1])
     
-    if debug_name == "pr_initial_qdm_mp_debug" and ratio and len(mhat_p) > 0:
-        print("--- QDM DEBUG PY (pr_initial_qdm_mp_debug, ratio=T) ---")
-        print("Original m_p_arr[0]:", m_p_original_first_val_for_debug)
-        print("m_p_arr[0] after uniform (if applicable):", m_p_after_runif_first_val_for_debug)
-        print("mhat_p[0] (before trace application):", mhat_p[0])
-        print("trace value:", trace)
-
-    # Enhanced HUSS debug block for mhat_p (works for ratio=T or ratio=F)
-    if debug_name == "huss_qdm_debug" and len(mhat_p) > 0:
-        print(f"--- QDM DEBUG PY (huss_qdm_debug, mhat_p path, ratio={ratio}) ---")
-        print("Input o_c_arr[:5] (after jitter/runif if any):\n", o_c_arr[:5])
-        print("Input m_c_arr[:5] (after jitter/runif if any):\n", m_c_arr[:5])
-        print("Input m_p_arr[:5] (after jitter/runif if any):\n", m_p_arr[:5])
-        if ratio:
-            print("Original m_p_arr[0] (before any runif for ratio):", m_p_original_first_val_for_debug)
-            print("m_p_arr[0] (after runif for ratio, if applicable):", m_p_after_runif_first_val_for_debug)
-        print("quant_o_c[:5]:\n", quant_o_c[:5])
-        print("quant_m_c[:5]:\n", quant_m_c[:5])
-        print("quant_m_p[:5]:\n", quant_m_p[:5])
-        print("tau_m_p[:5]:\n", tau_m_p[:5])
-        print("approx_t_qmc_val_py (np.interp(tau_m_p, tau, quant_m_c))[:5]:\n", approx_t_qmc_val_py[:5])
-        print("approx_t_qoc_val_py (np.interp(tau_m_p, tau, quant_o_c))[:5]:\n", approx_t_qoc_val_py[:5])
-        print("delta_m[:5]:\n", delta_m[:5])
-        print(f"mhat_p[:5] (before final trace application if ratio, else final):\n", mhat_p[:5])
-        if ratio: print("trace value for final zeroing:", trace)
-
-    # Enhanced HUSS debug block for mhat_c (works for ratio=T or ratio=F)
-    if debug_name == "huss_qdm_mhat_c_debug":
-        print(f"--- QDM DEBUG PY (huss_qdm_mhat_c_debug, mhat_c path, ratio={ratio}) ---")
-        print("Input o_c_arr (after jitter, if any)[:5]:\n", o_c_arr[:5])
-        print("Input m_c_arr (after jitter, if any)[:5]:\n", m_c_arr[:5])
-        print("quant_o_c[:5]:\n", quant_o_c[:5])
-        print("quant_m_c[:5]:\n", quant_m_c[:5])
-        print(f"mhat_c[:5] (before final trace application if ratio, else final):\n", mhat_c[:5])
-        if ratio: print("trace value for final zeroing:", trace)
-        
-        if np.all(np.isclose(mhat_c, 0)):
-            print("WARNING: All mhat_c values for huss are close to zero (before final trace if ratio).")
-        elif np.any(np.isclose(mhat_c, 0)):
-            print("INFO: Some mhat_c values for huss are close to zero (before final trace if ratio).")
-        print(f"Summary of mhat_c for huss (before final trace if ratio): min={np.min(mhat_c):.4e}, max={np.max(mhat_c):.4e}, mean={np.mean(mhat_c):.4e}")
-
     # Handle ratio data output
     if ratio:
         mhat_c[mhat_c < trace] = 0
@@ -636,15 +580,14 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
             first_ratio_var_idx = -1
             if np.any(ratio_seq_list):
                 first_ratio_var_idx = np.where(ratio_seq_list)[0][0]
-            if ratio_seq_list[i] and i == first_ratio_var_idx :
-                current_debug_name_py = "pr_initial_qdm_mp_debug"
+            # Removed current_debug_name_py logic, pass debug_name=None or remove if not needed by QDM
             
             fit_qmap = QDM(o_c_arr[:,i], m_c_qmap_initial_orig_mc[:,i], m_p_qmap_initial_orig_mp[:,i], 
                           ratio=ratio_seq_list[i], trace_calc=trace_calc_list[i],
                           trace=trace_list[i], jitter_factor=jitter_factor_list[i], # Use per-var jitter
                           n_tau=n_tau, ratio_max=ratio_max_list[i],
                           ratio_max_trace=ratio_max_trace_list[i],
-                          subsample=subsample, pp_type=pp_type, ties=ties, debug_name=current_debug_name_py)
+                          subsample=subsample, pp_type=pp_type, ties=ties) # Removed debug_name
             m_c_after_initial_qdm[:,i] = fit_qmap['mhat_c']
             m_p_after_initial_qdm[:,i] = fit_qmap['mhat_p']
     else: # If qmap_precalc is True, assume m_c_arr and m_p_arr are already QDM'd

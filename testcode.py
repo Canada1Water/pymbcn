@@ -81,22 +81,13 @@ for i in range(n_vars):
         current_debug_name_py = "huss_qdm_debug"
 
     # QDM for control period:
-    # Need a debug name for huss's mhat_c
-    debug_name_for_mhat_c = None
-    if variable_names[i] == "huss":
-        debug_name_for_mhat_c = "huss_qdm_mhat_c_debug"
-    
-    # --- Diagnostic print for current variable and its ratio flag ---
-    print(f"PY UNIQDM LOOP - Var: {variable_names[i]}, Index: {i}, Ratio Flag: {py_ratio_seq[i]}, Debug_mhat_c: {debug_name_for_mhat_c}, Debug_mhat_p: {current_debug_name_py}")
-
     fit_qdm_c = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
                    m_p=gcm_c_data[:, i],  # m_p is gcm_c_data for control period correction
                    ratio=py_ratio_seq[i], 
                    trace=py_trace_val[i], 
                    jitter_factor=0, 
                    ties='first',   
-                   pp_type='linear',
-                   debug_name=debug_name_for_mhat_c) # Pass the new debug name
+                   pp_type='linear') # Removed debug_name
     qdm_c[:, i] = fit_qdm_c['mhat_c']
 
     # QDM for projection period (mhat_p is desired):
@@ -106,12 +97,8 @@ for i in range(n_vars):
                    trace=py_trace_val[i], 
                    jitter_factor=0, 
                    ties='first',    
-                   pp_type='linear',
-                   debug_name=current_debug_name_py) # Pass debug_name for pr's m_p calculation
+                   pp_type='linear') # Removed debug_name
     qdm_p[:, i] = fit_qdm_p['mhat_p']
-    if variable_names[i] == "huss":
-       print('qdm[huss]')
-       print(qdm_p[:, i])
 
 print("Univariate QDM finished.")
 
@@ -201,25 +188,6 @@ fit_mbcn = MBCn(o_c=rcm_c_data, m_c=gcm_c_data, m_p=gcm_p_data,
 mbcn_c = fit_mbcn['mhat_c']
 mbcn_p = fit_mbcn['mhat_p']
 print("MBCn finished.\n")
-
-# --- Huss Data Summaries for Calibration Plots ---
-huss_col_idx = variable_names.index('huss') if 'huss' in variable_names else -1
-if huss_col_idx != -1:
-    print("--- Python Huss Summaries for Calibration Data ---")
-    print(f"Summary of qdm_c[:, 'huss']:\n{pd.Series(qdm_c[:, huss_col_idx]).describe()}")
-    print(f"Min: {np.min(qdm_c[:, huss_col_idx]):.6e}, Max: {np.max(qdm_c[:, huss_col_idx]):.6e}, Mean: {np.mean(qdm_c[:, huss_col_idx]):.6e}\n")
-
-    print(f"Summary of mbcp_c[:, 'huss']:\n{pd.Series(mbcp_c[:, huss_col_idx]).describe()}")
-    print(f"Min: {np.min(mbcp_c[:, huss_col_idx]):.6e}, Max: {np.max(mbcp_c[:, huss_col_idx]):.6e}, Mean: {np.mean(mbcp_c[:, huss_col_idx]):.6e}\n")
-
-    print(f"Summary of mbcr_c[:, 'huss']:\n{pd.Series(mbcr_c[:, huss_col_idx]).describe()}")
-    print(f"Min: {np.min(mbcr_c[:, huss_col_idx]):.6e}, Max: {np.max(mbcr_c[:, huss_col_idx]):.6e}, Mean: {np.mean(mbcr_c[:, huss_col_idx]):.6e}\n")
-
-    print(f"Summary of mbcn_c[:, 'huss']:\n{pd.Series(mbcn_c[:, huss_col_idx]).describe()}")
-    print(f"Min: {np.min(mbcn_c[:, huss_col_idx]):.6e}, Max: {np.max(mbcn_c[:, huss_col_idx]):.6e}, Mean: {np.mean(mbcn_c[:, huss_col_idx]):.6e}\n")
-else:
-    print("Huss variable not found for summary printing.")
-
 
 # --- Analysis Functions ---
 def plot_correlations(obs, model, title_prefix, var_names, period_label):
