@@ -118,19 +118,35 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
     mhat.c <- approx(quant.m.c, quant.o.c, m.c, rule=2,
                      ties='ordered')$y
 
-    # Debug for mhat.c path if huss_qdm_debug is active
-    if(!is.null(debug_name) && debug_name == "huss_qdm_debug" && !ratio){ # huss is not ratio
-        cat("--- QDM DEBUG R (huss_qdm_debug, mhat.c path, ratio=F) ---\n")
-        # The o.c, m.c printed below are after jitter.
+    # Enhanced HUSS debug block (covers mhat.c and mhat_p, adapts to ratio flag)
+    if(!is.null(debug_name) && debug_name == "huss_qdm_debug"){
+        cat(paste0("--- QDM DEBUG R (huss_qdm_debug, ratio=", ratio, ") ---\n"))
+        
+        cat("--- mhat.c related (for huss) ---\n")
         cat("Input o.c (after jitter/runif if any) [1:5]:\n"); print(head(o.c, 5))
         cat("Input m.c (after jitter/runif if any) [1:5]:\n"); print(head(m.c, 5))
         cat("quant.o.c[1:5]:\n"); print(head(quant.o.c, 5))
         cat("quant.m.c[1:5]:\n"); print(head(quant.m.c, 5))
-        cat("mhat.c[1:5] (final for this call):\n"); print(head(mhat.c, 5))
-        if (all(abs(mhat.c) < 1e-9)) { # Check if all values are effectively zero
-             cat("WARNING: All mhat.c values for huss are close to zero in R QDM.\n")
+        cat("mhat.c[1:5] (before final trace application if ratio, else final):\n"); print(head(mhat.c, 5))
+        if(ratio) cat("trace value for mhat.c final zeroing:", trace, "\n")
+        if (all(abs(mhat.c) < 1e-9)) {
+             cat("WARNING: All mhat.c values for huss are close to zero (before final trace if ratio).\n")
         }
-        cat("Summary of mhat.c for huss in R QDM:\n"); print(summary(mhat.c));
+        cat("Summary of mhat.c for huss (before final trace if ratio):\n"); print(summary(mhat.c));
+
+        cat("\n--- mhat.p related (for huss) ---\n")
+        cat("Input m.p (after jitter/runif if any) [1:5]:\n"); print(head(m.p, 5))
+        if(ratio){
+            cat("Original m.p[1] (before any runif for ratio):", m.p.original.first.val.for.debug, "\n")
+            cat("m.p[1] (after runif for ratio, if applicable):", m.p.after.runif.first.val.for.debug, "\n")
+        }
+        cat("quant.m.p[1:5]:\n"); print(head(quant.m.p, 5))
+        cat("tau.m.p[1:5]:\n"); print(head(tau.m.p, 5))
+        cat("approx.t.qmc.val (approx(tau, quant.m.c, tau.m.p))[1:5]:\n"); print(head(approx.t.qmc.val, 5))
+        cat("approx.t.qoc.val (approx(tau, quant.o.c, tau.m.p))[1:5]:\n"); print(head(approx.t.qoc.val, 5))
+        cat("delta.m[1:5]:\n"); print(head(delta.m, 5))
+        cat("mhat.p[1:5] (before final trace application if ratio, else final):\n"); print(head(mhat.p, 5))
+        if(ratio) cat("trace value for mhat.p final zeroing:", trace, "\n")
     }
 
     if(!is.null(debug_name) && debug_name == "pr_initial_qdm_mp_debug" && ratio && length(mhat.p) > 0){
@@ -139,22 +155,6 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
         cat("m.p[1] after runif (if applicable):", m.p.after.runif.first.val.for.debug, "\n")
         cat("mhat.p[1] (before trace application):", mhat.p[1], "\n")
         cat("trace value:", trace, "\n")
-    }
-
-    # ADD NEW DEBUG BLOCK FOR HUSS (NON-RATIO)
-    if(!is.null(debug_name) && debug_name == "huss_qdm_debug" && !ratio && length(mhat.p) > 0){
-        cat("--- QDM DEBUG R (huss_qdm_debug, ratio=F) ---\n")
-        cat("Input o.c[1:5] (after jitter/runif if any):\n"); print(head(o.c, 5))
-        cat("Input m.c[1:5] (after jitter/runif if any):\n"); print(head(m.c, 5))
-        cat("Input m.p[1:5] (after jitter/runif if any):\n"); print(head(m.p, 5))
-        cat("quant.o.c[1:5]:\n"); print(head(quant.o.c, 5))
-        cat("quant.m.c[1:5]:\n"); print(head(quant.m.c, 5))
-        cat("quant.m.p[1:5]:\n"); print(head(quant.m.p, 5))
-        cat("tau.m.p[1:5]:\n"); print(head(tau.m.p, 5))
-        cat("approx(tau, quant.m.c, tau.m.p)[1:5]:\n"); print(head(approx.t.qmc.val, 5))
-        cat("approx(tau, quant.o.c, tau.m.p)[1:5]:\n"); print(head(approx.t.qoc.val, 5))
-        cat("delta.m[1:5]:\n"); print(head(delta.m, 5))
-        cat("mhat.p[1:5] (final for non-ratio):\n"); print(head(mhat.p, 5))
     }
 
     # For ratio data, set values less than trace to zero
