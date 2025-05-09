@@ -261,31 +261,22 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
     # Handle rule=2: np.interp default behavior matches rule=2 (extrapolates with endpoint values)
     tau_m_p = np.interp(m_p_arr, quant_m_p, tau, left=tau[0], right=tau[-1]) 
     
+    approx_t_qmc_val_py = np.interp(tau_m_p, tau, quant_m_c, left=quant_m_c[0], right=quant_m_c[-1])
+    approx_t_qoc_val_py = np.interp(tau_m_p, tau, quant_o_c, left=quant_o_c[0], right=quant_o_c[-1])
+
     if ratio:
-        approx_t_qmc_tmp = np.interp(tau_m_p, tau, quant_m_c, left=quant_m_c[0], right=quant_m_c[-1])
-        # Avoid division by zero or very small numbers if not intended by trace logic
-        # R's behavior: if approx_t_qmc_tmp is zero, delta_m becomes Inf.
-        # Let's add a small epsilon to denominator to prevent strict zero division if it's problematic.
-        # However, R's code doesn't explicitly do this, so Inf/NaN might be expected.
-        # The trace logic should handle small values.
-        # If approx_t_qmc_tmp is zero and m_p_arr is also zero, 0/0 -> NaN.
-        # If approx_t_qmc_tmp is zero and m_p_arr is non-zero, non-zero/0 -> Inf.
-        delta_m = m_p_arr / (approx_t_qmc_tmp + np.finfo(float).eps * (approx_t_qmc_tmp==0)) # Add small epsilon only if zero
+        # approx_t_qmc_tmp was used here, now it's approx_t_qmc_val_py
+        delta_m = m_p_arr / (approx_t_qmc_val_py + np.finfo(float).eps * (approx_t_qmc_val_py==0)) 
         
-        # Apply ratio_max constraint
-        mask_ratio_max = (delta_m > ratio_max) & (approx_t_qmc_tmp < ratio_max_trace)
+        mask_ratio_max = (delta_m > ratio_max) & (approx_t_qmc_val_py < ratio_max_trace)
         delta_m[mask_ratio_max] = ratio_max
         
-        # Handle Inf/NaN in delta_m before multiplication if necessary
-        # If delta_m is Inf due to approx_t_qmc_tmp being near zero, and quant_o_c is also near zero,
-        # the result might be NaN (0 * Inf). R handles this.
-        # Python: np.inf * 0 is nan.
-        delta_m = np.nan_to_num(delta_m, nan=1.0, posinf=ratio_max, neginf=1/ratio_max if ratio_max !=0 else 0) # Heuristic for Inf
+        delta_m = np.nan_to_num(delta_m, nan=1.0, posinf=ratio_max, neginf=1/ratio_max if ratio_max !=0 else 0)
 
-        mhat_p = np.interp(tau_m_p, tau, quant_o_c, left=quant_o_c[0], right=quant_o_c[-1]) * delta_m
+        mhat_p = approx_t_qoc_val_py * delta_m
     else:
-        delta_m = m_p_arr - np.interp(tau_m_p, tau, quant_m_c, left=quant_m_c[0], right=quant_m_c[-1])
-        mhat_p = np.interp(tau_m_p, tau, quant_o_c, left=quant_o_c[0], right=quant_o_c[-1]) + delta_m
+        delta_m = m_p_arr - approx_t_qmc_val_py
+        mhat_p = approx_t_qoc_val_py + delta_m
 
     mhat_c = np.interp(m_c_arr, quant_m_c, quant_o_c, left=quant_o_c[0], right=quant_o_c[-1])
     
@@ -295,6 +286,21 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
         print("m_p_arr[0] after uniform (if applicable):", m_p_after_runif_first_val_for_debug)
         print("mhat_p[0] (before trace application):", mhat_p[0])
         print("trace value:", trace)
+
+    # ADD NEW DEBUG BLOCK FOR HUSS (NON-RATIO)
+    if debug_name == "huss_qdm_debug" and not ratio and len(mhat_p) > 0:
+        print("--- QDM DEBUG PY (huss_qdm_debug, ratio=F) ---")
+        print("Input o_c_arr[:5] (after jitter/runif if any):\n", o_c_arr[:5])
+        print("Input m_c_arr[:5] (after jitter/runif if any):\n", m_c_arr[:5])
+        print("Input m_p_arr[:5] (after jitter/runif if any):\n", m_p_arr[:5])
+        print("quant_o_c[:5]:\n", quant_o_c[:5])
+        print("quant_m_c[:5]:\n", quant_m_c[:5])
+        print("quant_m_p[:5]:\n", quant_m_p[:5])
+        print("tau_m_p[:5]:\n", tau_m_p[:5])
+        print("np.interp(tau_m_p, tau, quant_m_c)[:5]:\n", approx_t_qmc_val_py[:5])
+        print("np.interp(tau_m_p, tau, quant_o_c)[:5]:\n", approx_t_qoc_val_py[:5])
+        print("delta_m[:5]:\n", delta_m[:5])
+        print("mhat_p[:5] (final for non-ratio):\n", mhat_p[:5])
 
     # Handle ratio data output
     if ratio:

@@ -94,19 +94,18 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
     }
     # Apply quantile delta mapping bias correction
     tau.m.p <- approx(quant.m.p, tau, m.p, rule=2, ties='ordered')$y    
+    
+    approx.t.qmc.val <- approx(tau, quant.m.c, tau.m.p, rule=2, ties='ordered')$y 
+    approx.t.qoc.val <- approx(tau, quant.o.c, tau.m.p, rule=2, ties='ordered')$y 
+
     if(ratio){
-        approx.t.qmc.tmp <- approx(tau, quant.m.c, tau.m.p, rule=2,
-                                   ties='ordered')$y
-        delta.m <- m.p/approx.t.qmc.tmp
+        delta.m <- m.p/approx.t.qmc.val # Use stored value
         delta.m[(delta.m > ratio.max) &
-                (approx.t.qmc.tmp < ratio.max.trace)] <- ratio.max
-        mhat.p <- approx(tau, quant.o.c, tau.m.p, rule=2,
-                         ties='ordered')$y*delta.m
+                (approx.t.qmc.val < ratio.max.trace)] <- ratio.max # Use stored value for approx.t.qmc.val
+        mhat.p <- approx.t.qoc.val*delta.m # Use stored value
     } else{
-        delta.m <- m.p - approx(tau, quant.m.c, tau.m.p, rule=2,
-                                ties='ordered')$y
-        mhat.p <- approx(tau, quant.o.c, tau.m.p, rule=2,
-                         ties='ordered')$y + delta.m
+        delta.m <- m.p - approx.t.qmc.val # Use stored value
+        mhat.p <- approx.t.qoc.val + delta.m # Use stored value
     }
     mhat.c <- approx(quant.m.c, quant.o.c, m.c, rule=2,
                      ties='ordered')$y
@@ -117,6 +116,22 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
         cat("m.p[1] after runif (if applicable):", m.p.after.runif.first.val.for.debug, "\n")
         cat("mhat.p[1] (before trace application):", mhat.p[1], "\n")
         cat("trace value:", trace, "\n")
+    }
+
+    # ADD NEW DEBUG BLOCK FOR HUSS (NON-RATIO)
+    if(!is.null(debug_name) && debug_name == "huss_qdm_debug" && !ratio && length(mhat.p) > 0){
+        cat("--- QDM DEBUG R (huss_qdm_debug, ratio=F) ---\n")
+        cat("Input o.c[1:5] (after jitter/runif if any):\n"); print(head(o.c, 5))
+        cat("Input m.c[1:5] (after jitter/runif if any):\n"); print(head(m.c, 5))
+        cat("Input m.p[1:5] (after jitter/runif if any):\n"); print(head(m.p, 5))
+        cat("quant.o.c[1:5]:\n"); print(head(quant.o.c, 5))
+        cat("quant.m.c[1:5]:\n"); print(head(quant.m.c, 5))
+        cat("quant.m.p[1:5]:\n"); print(head(quant.m.p, 5))
+        cat("tau.m.p[1:5]:\n"); print(head(tau.m.p, 5))
+        cat("approx(tau, quant.m.c, tau.m.p)[1:5]:\n"); print(head(approx.t.qmc.val, 5))
+        cat("approx(tau, quant.o.c, tau.m.p)[1:5]:\n"); print(head(approx.t.qoc.val, 5))
+        cat("delta.m[1:5]:\n"); print(head(delta.m, 5))
+        cat("mhat.p[1:5] (final for non-ratio):\n"); print(head(mhat.p, 5))
     }
 
     # For ratio data, set values less than trace to zero

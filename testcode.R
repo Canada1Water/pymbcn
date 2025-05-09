@@ -17,6 +17,9 @@ for (i in seq(ncol(cccma$gcm.c))) {
   if (cccma$ratio.seq[i] && i == which(cccma$ratio.seq)[1]) { # Assuming pr is the first ratio var
       current_debug_name <- "pr_initial_qdm_mp_debug"
   }
+  if (colnames(cccma$gcm.c)[i] == "huss") { 
+      current_debug_name <- "huss_qdm_debug"
+  }
   fit.qdm <- QDM(o.c = cccma$rcm.c[, i], m.c = cccma$gcm.c[, i], m.p = cccma$gcm.p[, i], 
                  ratio = cccma$ratio.seq[i], trace = cccma$trace[i], debug_name = current_debug_name)
   qdm.c[, i] <- fit.qdm$mhat.c
@@ -37,7 +40,8 @@ mbcr.p <- fit.mbcr$mhat.p
 
 # Multivariate MBCn bias correction
 fit.mbcn <- MBCn(o.c = cccma$rcm.c, m.c = cccma$gcm.c, m.p = cccma$gcm.p, 
-                  ratio.seq = cccma$ratio.seq, trace = cccma$trace)
+                  ratio.seq = cccma$ratio.seq, trace = cccma$trace,
+                  n.escore = 100, silent = FALSE) # Added n.escore and silent
 mbcn.c <- fit.mbcn$mhat.c
 mbcn.p <- fit.mbcn$mhat.p
 colnames(mbcn.c) <- colnames(mbcn.p) <- colnames(cccma$rcm.c)

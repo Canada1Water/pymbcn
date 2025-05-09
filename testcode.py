@@ -77,6 +77,8 @@ for i in range(n_vars):
     
     if py_ratio_seq[i] and i == first_ratio_var_idx:
         current_debug_name_py = "pr_initial_qdm_mp_debug"
+    if variable_names[i] == "huss": # Check for huss
+        current_debug_name_py = "huss_qdm_debug"
 
     # QDM for control period:
     fit_qdm_c = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
@@ -128,7 +130,7 @@ fit_mbcn = MBCn(o_c=rcm_c_data, m_c=gcm_c_data, m_p=gcm_p_data,
                ratio_seq=py_ratio_seq, trace=py_trace_val,
                jitter_factor=0, 
                ties='first',    
-               silent=False, n_escore=0, 
+               silent=False, n_escore=100, # Changed n_escore to 100
                pp_type='linear') 
 mbcn_c = fit_mbcn['mhat_c']
 mbcn_p = fit_mbcn['mhat_p']
