@@ -112,100 +112,60 @@ for i in range(n_vars):
 
 print("Univariate QDM finished.")
 
-# --- Huss Histograms (Original GCM_P vs QDM_P) ---
-huss_col_idx_for_hist = variable_names.index('huss') if 'huss' in variable_names else -1
-if huss_col_idx_for_hist != -1:
-    plt.figure(figsize=(12, 6))
+# --- GCM_P vs QDM_P Histograms and Time Series Plots for all variables ---
+print("\nGenerating GCM_P vs QDM_P histograms and time series plots for all variables...")
+for plot_var_idx, plot_var_name in enumerate(variable_names):
+    gcm_p_var_data = gcm_p_data[:, plot_var_idx]
+    qdm_p_var_data = qdm_p[:, plot_var_idx]
 
+    # Determine common range and bins for histograms
+    combined_data_for_hist = np.concatenate((gcm_p_var_data, qdm_p_var_data))
+    min_val = np.nanmin(combined_data_for_hist)
+    max_val = np.nanmax(combined_data_for_hist)
+    hist_bins = 30
+    hist_range = (min_val, max_val)
+
+    # --- Histograms ---
+    plt.figure(figsize=(12, 6))
     plt.subplot(1, 2, 1)
-    plt.hist(gcm_p_data[:, huss_col_idx_for_hist], bins=30, color='blue', alpha=0.7)
-    plt.title('Histogram of Original GCM Projection Data for Huss')
-    plt.xlabel('Huss Value')
+    plt.hist(gcm_p_var_data, bins=hist_bins, range=hist_range, color='blue', alpha=0.7)
+    plt.title(f'Histogram of Original GCM Projection Data for {plot_var_name.upper()}')
+    plt.xlabel(f'{plot_var_name.upper()} Value')
     plt.ylabel('Frequency')
 
     plt.subplot(1, 2, 2)
-    plt.hist(qdm_p[:, huss_col_idx_for_hist], bins=30, color='green', alpha=0.7)
-    plt.title('Histogram of QDM Processed Data for Huss (Projection Period)')
-    plt.xlabel('Huss Value')
+    plt.hist(qdm_p_var_data, bins=hist_bins, range=hist_range, color='green', alpha=0.7)
+    plt.title(f'Histogram of QDM Processed Data for {plot_var_name.upper()} (Projection Period)')
+    plt.xlabel(f'{plot_var_name.upper()} Value')
     plt.ylabel('Frequency')
 
     plt.tight_layout()
-    plt.savefig("huss_gcm_p_vs_qdm_p_histograms.png")
+    plt.savefig(f"{plot_var_name}_gcm_p_vs_qdm_p_histograms.png")
     plt.close()
-    print("Huss GCM_P vs QDM_P histograms saved to huss_gcm_p_vs_qdm_p_histograms.png")
+    print(f"{plot_var_name.upper()} GCM_P vs QDM_P histograms saved to {plot_var_name}_gcm_p_vs_qdm_p_histograms.png")
 
-    # --- Huss Time Series Plots (Original GCM_P vs QDM_P) ---
+    # --- Time Series Plots ---
     plt.figure(figsize=(12, 8))
-    time_axis_p = np.arange(gcm_p_data.shape[0]) # Simple time index for projection period
+    time_axis_p = np.arange(gcm_p_var_data.shape[0]) # Simple time index
 
     plt.subplot(2, 1, 1)
-    plt.plot(time_axis_p, gcm_p_data[:, huss_col_idx_for_hist], color='blue', alpha=0.7, linewidth=0.8)
-    plt.title('Time Series of Original GCM Projection Data for Huss')
+    plt.plot(time_axis_p, gcm_p_var_data, color='blue', alpha=0.7, linewidth=0.8)
+    plt.title(f'Time Series of Original GCM Projection Data for {plot_var_name.upper()}')
     plt.xlabel('Time Index')
-    plt.ylabel('Huss Value')
+    plt.ylabel(f'{plot_var_name.upper()} Value')
     plt.grid(True)
 
     plt.subplot(2, 1, 2)
-    plt.plot(time_axis_p, qdm_p[:, huss_col_idx_for_hist], color='green', alpha=0.7, linewidth=0.8)
-    plt.title('Time Series of QDM Processed Data for Huss (Projection Period)')
+    plt.plot(time_axis_p, qdm_p_var_data, color='green', alpha=0.7, linewidth=0.8)
+    plt.title(f'Time Series of QDM Processed Data for {plot_var_name.upper()} (Projection Period)')
     plt.xlabel('Time Index')
-    plt.ylabel('Huss Value')
+    plt.ylabel(f'{plot_var_name.upper()} Value')
     plt.grid(True)
 
     plt.tight_layout()
-    plt.savefig("huss_gcm_p_vs_qdm_p_timeseries.png")
+    plt.savefig(f"{plot_var_name}_gcm_p_vs_qdm_p_timeseries.png")
     plt.close()
-    print("Huss GCM_P vs QDM_P time series plots saved to huss_gcm_p_vs_qdm_p_timeseries.png")
-
-else:
-    print("Huss variable not found for histogram and time series plotting.")
-
-# --- Tas Histograms and Time Series Plots (Original GCM_P vs QDM_P) ---
-tas_col_idx_for_plots = variable_names.index('tas') if 'tas' in variable_names else -1
-if tas_col_idx_for_plots != -1:
-    # --- Tas Histograms ---
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    plt.hist(gcm_p_data[:, tas_col_idx_for_plots], bins=30, color='blue', alpha=0.7)
-    plt.title('Histogram of Original GCM Projection Data for Tas')
-    plt.xlabel('Tas Value')
-    plt.ylabel('Frequency')
-
-    plt.subplot(1, 2, 2)
-    plt.hist(qdm_p[:, tas_col_idx_for_plots], bins=30, color='green', alpha=0.7)
-    plt.title('Histogram of QDM Processed Data for Tas (Projection Period)')
-    plt.xlabel('Tas Value')
-    plt.ylabel('Frequency')
-    plt.tight_layout()
-    plt.savefig("tas_gcm_p_vs_qdm_p_histograms.png")
-    plt.close()
-    print("Tas GCM_P vs QDM_P histograms saved to tas_gcm_p_vs_qdm_p_histograms.png")
-
-    # --- Tas Time Series Plots ---
-    plt.figure(figsize=(12, 8))
-    time_axis_p_tas = np.arange(gcm_p_data.shape[0]) # Simple time index for projection period
-
-    plt.subplot(2, 1, 1)
-    plt.plot(time_axis_p_tas, gcm_p_data[:, tas_col_idx_for_plots], color='blue', alpha=0.7, linewidth=0.8)
-    plt.title('Time Series of Original GCM Projection Data for Tas')
-    plt.xlabel('Time Index')
-    plt.ylabel('Tas Value')
-    plt.grid(True)
-
-    plt.subplot(2, 1, 2)
-    plt.plot(time_axis_p_tas, qdm_p[:, tas_col_idx_for_plots], color='green', alpha=0.7, linewidth=0.8)
-    plt.title('Time Series of QDM Processed Data for Tas (Projection Period)')
-    plt.xlabel('Time Index')
-    plt.ylabel('Tas Value')
-    plt.grid(True)
-
-    plt.tight_layout()
-    plt.savefig("tas_gcm_p_vs_qdm_p_timeseries.png")
-    plt.close()
-    print("Tas GCM_P vs QDM_P time series plots saved to tas_gcm_p_vs_qdm_p_timeseries.png")
-else:
-    print("Tas variable not found for histogram and time series plotting.")
-
+    print(f"{plot_var_name.upper()} GCM_P vs QDM_P time series plots saved to {plot_var_name}_gcm_p_vs_qdm_p_timeseries.png")
 
 # --- Multivariate Bias Corrections ---
 print("\nRunning MBCp...")

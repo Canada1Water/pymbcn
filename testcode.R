@@ -26,80 +26,62 @@ for (i in seq(ncol(cccma$gcm.c))) {
   qdm.p[, i] <- fit.qdm$mhat.p
 }
 
-# Huss Histograms (Original GCM_P vs QDM_P)
-if ("huss" %in% colnames(cccma$gcm.p)) {
-  huss_idx_r <- which(colnames(cccma$gcm.p) == "huss")
-  
-  png("huss_gcm_p_vs_qdm_p_histograms_r.png", width=1000, height=500)
+# --- GCM_P vs QDM_P Histograms and Time Series Plots for all variables ---
+cat("\nGenerating GCM_P vs QDM_P R histograms and time series plots for all variables...\n")
+for (plot_var_idx in 1:ncol(cccma$gcm.p)) {
+  plot_var_name <- colnames(cccma$gcm.p)[plot_var_idx]
+  gcm_p_var_data_r <- cccma$gcm.p[, plot_var_idx]
+  qdm_p_var_data_r <- qdm.p[, plot_var_idx]
+
+  # Determine common range and bins for histograms
+  combined_data_for_hist_r <- c(gcm_p_var_data_r, qdm_p_var_data_r)
+  min_val_r <- min(combined_data_for_hist_r, na.rm = TRUE)
+  max_val_r <- max(combined_data_for_hist_r, na.rm = TRUE)
+  # Define breaks for 30 bins covering the common range
+  hist_breaks_r <- seq(min_val_r, max_val_r, length.out = 31) 
+  # Ensure breaks are unique in case min_val_r == max_val_r
+  if (length(unique(hist_breaks_r)) < 2) {
+    hist_breaks_r <- seq(min_val_r - 0.5, max_val_r + 0.5, length.out = 31)
+    if (length(unique(hist_breaks_r)) < 2) hist_breaks_r <- 30 # Fallback
+  }
+
+
+  # --- Histograms ---
+  png_hist_filename <- paste0(plot_var_name, "_gcm_p_vs_qdm_p_histograms_r.png")
+  png(png_hist_filename, width=1000, height=500)
   par(mfrow = c(1, 2))
   
-  hist(cccma$gcm.p[, huss_idx_r], breaks = 30, col = "blue", 
-       main = "Histogram of Original GCM Projection Data for Huss", xlab = "Huss Value")
+  hist(gcm_p_var_data_r, breaks = hist_breaks_r, xlim = c(min_val_r, max_val_r), col = "blue", 
+       main = paste("Histogram of Original GCM Projection Data for", toupper(plot_var_name)), 
+       xlab = paste(toupper(plot_var_name), "Value"))
   
-  hist(qdm.p[, huss_idx_r], breaks = 30, col = "green", 
-       main = "Histogram of QDM Processed Data for Huss (Projection)", xlab = "Huss Value")
-  
-  dev.off()
-  cat("Huss GCM_P vs QDM_P R histograms saved to huss_gcm_p_vs_qdm_p_histograms_r.png\n")
-
-  # Huss Time Series Plots (Original GCM_P vs QDM_P)
-  png("huss_gcm_p_vs_qdm_p_timeseries_r.png", width=1000, height=800)
-  par(mfrow = c(2, 1), mar = c(4, 4, 2, 1)) # Adjust margins for titles
-
-  time_axis_p_r <- seq_len(nrow(cccma$gcm.p))
-
-  plot(time_axis_p_r, cccma$gcm.p[, huss_idx_r], type = 'l', col = "blue",
-       main = "Time Series of Original GCM Projection Data for Huss", 
-       xlab = "Time Index", ylab = "Huss Value")
-  grid()
-  
-  plot(time_axis_p_r, qdm.p[, huss_idx_r], type = 'l', col = "green", 
-       main = "Time Series of QDM Processed Data for Huss (Projection)", 
-       xlab = "Time Index", ylab = "Huss Value")
-  grid()
+  hist(qdm_p_var_data_r, breaks = hist_breaks_r, xlim = c(min_val_r, max_val_r), col = "green", 
+       main = paste("Histogram of QDM Processed Data for", toupper(plot_var_name), "(Projection)"), 
+       xlab = paste(toupper(plot_var_name), "Value"))
   
   dev.off()
-  cat("Huss GCM_P vs QDM_P R time series plots saved to huss_gcm_p_vs_qdm_p_timeseries_r.png\n")
-  
-} else {
-  cat("Huss variable not found for R histogram and time series plotting.\n")
-}
+  cat(toupper(plot_var_name), "GCM_P vs QDM_P R histograms saved to", png_hist_filename, "\n")
 
-# Tas Histograms and Time Series Plots (Original GCM_P vs QDM_P)
-if ("tas" %in% colnames(cccma$gcm.p)) {
-  tas_idx_r <- which(colnames(cccma$gcm.p) == "tas")
-  
-  # --- Tas Histograms ---
-  png("tas_gcm_p_vs_qdm_p_histograms_r.png", width=1000, height=500)
-  par(mfrow = c(1, 2))
-  hist(cccma$gcm.p[, tas_idx_r], breaks = 30, col = "blue", 
-       main = "Histogram of Original GCM Projection Data for Tas", xlab = "Tas Value")
-  hist(qdm.p[, tas_idx_r], breaks = 30, col = "green", 
-       main = "Histogram of QDM Processed Data for Tas (Projection)", xlab = "Tas Value")
-  dev.off()
-  cat("Tas GCM_P vs QDM_P R histograms saved to tas_gcm_p_vs_qdm_p_histograms_r.png\n")
-
-  # --- Tas Time Series Plots ---
-  png("tas_gcm_p_vs_qdm_p_timeseries_r.png", width=1000, height=800)
+  # --- Time Series Plots ---
+  png_ts_filename <- paste0(plot_var_name, "_gcm_p_vs_qdm_p_timeseries_r.png")
+  png(png_ts_filename, width=1000, height=800)
   par(mfrow = c(2, 1), mar = c(4, 4, 2, 1)) 
-  time_axis_p_r_tas <- seq_len(nrow(cccma$gcm.p))
 
-  plot(time_axis_p_r_tas, cccma$gcm.p[, tas_idx_r], type = 'l', col = "blue",
-       main = "Time Series of Original GCM Projection Data for Tas", 
-       xlab = "Time Index", ylab = "Tas Value")
+  time_axis_p_r <- seq_len(length(gcm_p_var_data_r))
+
+  plot(time_axis_p_r, gcm_p_var_data_r, type = 'l', col = "blue",
+       main = paste("Time Series of Original GCM Projection Data for", toupper(plot_var_name)), 
+       xlab = "Time Index", ylab = paste(toupper(plot_var_name), "Value"))
   grid()
   
-  plot(time_axis_p_r_tas, qdm.p[, tas_idx_r], type = 'l', col = "green", 
-       main = "Time Series of QDM Processed Data for Tas (Projection)", 
-       xlab = "Time Index", ylab = "Tas Value")
+  plot(time_axis_p_r, qdm_p_var_data_r, type = 'l', col = "green", 
+       main = paste("Time Series of QDM Processed Data for", toupper(plot_var_name), "(Projection)"), 
+       xlab = "Time Index", ylab = paste(toupper(plot_var_name), "Value"))
   grid()
+  
   dev.off()
-  cat("Tas GCM_P vs QDM_P R time series plots saved to tas_gcm_p_vs_qdm_p_timeseries_r.png\n")
-  
-} else {
-  cat("Tas variable not found for R histogram and time series plotting.\n")
+  cat(toupper(plot_var_name), "GCM_P vs QDM_P R time series plots saved to", png_ts_filename, "\n")
 }
-
 
 # Multivariate MBCp bias correction
 fit.mbcp <- MBCp(o.c = cccma$rcm.c, m.c = cccma$gcm.c, m.p = cccma$gcm.p, 
