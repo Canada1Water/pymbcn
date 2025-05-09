@@ -106,6 +106,9 @@ for i in range(n_vars):
                    pp_type='linear',
                    debug_name=current_debug_name_py) # Pass debug_name for pr's m_p calculation
     qdm_p[:, i] = fit_qdm_p['mhat_p']
+    if variable_names[i] == "huss":
+       print('qdm[huss]')
+       print(qdm_p[:, i])
 
 print("Univariate QDM finished.")
 
