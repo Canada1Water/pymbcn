@@ -346,6 +346,9 @@ function(o.c, m.c, m.p, iter=20, cor.thresh=1e-4,
          jitter.factor=0, n.tau=NULL, ratio.max=2, ratio.max.trace=10*trace,
          ties='first', qmap.precalc=FALSE, silent=FALSE, subsample=NULL,
          pp.type=7){
+
+    MBCP_ITER_DEBUG_R <- TRUE # Set to TRUE for R debug prints in MBCp
+
     if(length(trace.calc)==1)
         trace.calc <- rep(trace.calc, ncol(o.c))
     if(length(trace)==1)
@@ -356,61 +359,133 @@ function(o.c, m.c, m.p, iter=20, cor.thresh=1e-4,
         ratio.max <- rep(ratio.max, ncol(o.c))
     if(length(ratio.max.trace)==1)
         ratio.max.trace <- rep(ratio.max.trace, ncol(o.c))
-    m.c.qmap <- m.c
-    m.p.qmap <- m.p
+    
+    m.c.qmap.initial <- m.c # Save original m.c for initial QDM
+    m.p.qmap.initial <- m.p # Save original m.p for initial QDM
+
+    m.c.qmap <- m.c # This will hold the QDM'd values for final shuffle
+    m.p.qmap <- m.p # This will hold the QDM'd values for final shuffle
+
     if(!qmap.precalc){
-        # Quantile delta mapping bias correction
+        if(MBCP_ITER_DEBUG_R) cat("--- MBCp DEBUG R: Initial QDM --- \n")
         for(i in seq(ncol(o.c))){
-            fit.qmap <- QDM(o.c=o.c[,i], m.c=m.c[,i], m.p=m.p[,i],
+            if(MBCP_ITER_DEBUG_R && i == 1) {
+                cat("Initial QDM for var 1 - o.c head:\n"); print(head(o.c[,i],2));
+                cat("Initial QDM for var 1 - m.c (original) head:\n"); print(head(m.c.qmap.initial[,i],2));
+                cat("Initial QDM for var 1 - m.p (original) head:\n"); print(head(m.p.qmap.initial[,i],2));
+            }
+            fit.qmap <- QDM(o.c=o.c[,i], m.c=m.c.qmap.initial[,i], m.p=m.p.qmap.initial[,i], # Use original m.c, m.p
                             ratio=ratio.seq[i], trace.calc=trace.calc[i],
                             trace=trace[i], jitter.factor=jitter.factor[i],
                             n.tau=n.tau, ratio.max=ratio.max[i],
                             ratio.max.trace=ratio.max.trace[i],
                             subsample=subsample, pp.type=pp.type)
-            m.c.qmap[,i] <- fit.qmap$mhat.c
-            m.p.qmap[,i] <- fit.qmap$mhat.p
+            m.c.qmap[,i] <- fit.qmap$mhat.c # Store QDM'd m.c for final shuffle
+            m.p.qmap[,i] <- fit.qmap$mhat.p # Store QDM'd m.p for final shuffle
+            if(MBCP_ITER_DEBUG_R && i == 1) {
+                 cat("Initial QDM for var 1 - m.c.qmap head:\n"); print(head(m.c.qmap[,i],2));
+                 cat("Initial QDM for var 1 - m.p.qmap head:\n"); print(head(m.p.qmap[,i],2));
+            }
         }
     }
-    m.c <- m.c.qmap
-    m.p <- m.p.qmap
+    
+    # Iteration starts with QDM-corrected data
+    m.c.iter <- m.c.qmap 
+    m.p.iter <- m.p.qmap
+
+    if(MBCP_ITER_DEBUG_R) {
+        cat("--- MBCp DEBUG R: Before Loop ---\n")
+        cat("Summary m.c.iter (after initial QDM, start of loop) head:\n"); print(summary(m.c.iter[,1:min(3,ncol(m.c.iter))])); print(head(m.c.iter[,1:min(3,ncol(m.c.iter))],2))
+    }
+
     # Pearson correlation to assess convergence
     if(cor.thresh > 0){
-        cor.i <- cor(m.c)
+        cor.i <- cor(m.c.iter)
         cor.i[is.na(cor.i)] <- 0
     }
-    o.c.chol <- o.p.chol <- as.matrix(chol(nearPD(cov(o.c))$mat))
+    
+    o.c.cov.mat <- cov(o.c) # Covariance of original observations
+    o.c.chol <- o.p.chol <- as.matrix(chol(nearPD(o.c.cov.mat)$mat))
+    if(MBCP_ITER_DEBUG_R) {
+        cat("cov(o.c) head:\n"); print(head(o.c.cov.mat[,1:min(3,ncol(o.c.cov.mat))]))
+        cat("o.c.chol head:\n"); print(head(o.c.chol[,1:min(3,ncol(o.c.chol))]))
+    }
+
     # Iterative MBC/QDM
-    for(i in seq(iter)){
-        m.c.chol <- m.p.chol <- as.matrix(chol(nearPD(cov(m.c))$mat))
-        fit.mbc <- MRS(o.c=o.c, m.c=m.c, m.p=m.p, o.c.chol=o.c.chol,
-                       o.p.chol=o.p.chol, m.c.chol=m.c.chol, m.p.chol=m.p.chol)
-        m.c <- fit.mbc$mhat.c
-        m.p <- fit.mbc$mhat.p
-        for(j in seq(ncol(o.c))){
-            fit.qmap <- QDM(o.c=o.c[,j], m.c=m.c[,j], m.p=m.p[,j], ratio=FALSE,
-                            n.tau=n.tau, pp.type=pp.type)
-            m.c[,j] <- fit.qmap$mhat.c
-            m.p[,j] <- fit.qmap$mhat.p
+    for(i_loop in seq(iter)){ # Renamed loop variable
+        if(MBCP_ITER_DEBUG_R && i_loop == 1){
+            cat(paste0("--- MBCp DEBUG R: Iteration ", i_loop, " ---\n"))
+            cat("Summary m.c.iter (start of iter) head:\n"); print(summary(m.c.iter[,1:min(3,ncol(m.c.iter))])); print(head(m.c.iter[,1:min(3,ncol(m.c.iter))],2))
+            
+            cov.m.c.iter.raw <- cov(m.c.iter)
+            cat("cov(m.c.iter) (raw) head:\n"); print(head(cov.m.c.iter.raw[,1:min(3,ncol(cov.m.c.iter.raw))]))
+            npd.m.c.iter.obj <- nearPD(cov.m.c.iter.raw)
+            cat("nearPD(cov(m.c.iter))$mat head:\n"); print(head(npd.m.c.iter.obj$mat[,1:min(3,ncol(npd.m.c.iter.obj$mat))]))
         }
+
+        m.c.chol <- m.p.chol <- as.matrix(chol(nearPD(cov(m.c.iter))$mat))
+        
+        if(MBCP_ITER_DEBUG_R && i_loop == 1){
+            cat("m.c.chol head:\n"); print(head(m.c.chol[,1:min(3,ncol(m.c.chol))]))
+            .MRS_DEBUG_PRINT <<- TRUE 
+        }
+
+        fit.mbc <- MRS(o.c=o.c, m.c=m.c.iter, m.p=m.p.iter, o.c.chol=o.c.chol,
+                       o.p.chol=o.p.chol, m.c.chol=m.c.chol, m.p.chol=m.p.chol)
+        
+        if(MBCP_ITER_DEBUG_R && i_loop == 1){
+            .MRS_DEBUG_PRINT <<- FALSE
+            cat("Summary fit.mbc$mhat.c (after MRS) head:\n"); print(summary(fit.mbc$mhat.c[,1:min(3,ncol(fit.mbc$mhat.c))])); print(head(fit.mbc$mhat.c[,1:min(3,ncol(fit.mbc$mhat.c))],2))
+        }
+        
+        m.c.iter.after.mrs <- fit.mbc$mhat.c # Use temp vars for clarity
+        m.p.iter.after.mrs <- fit.mbc$mhat.p
+
+        # Inner QDM loop
+        for(j in seq(ncol(o.c))){
+            if(MBCP_ITER_DEBUG_R && i_loop == 1 && j == 1){
+                cat(paste0("--- MBCp DEBUG R: Iter ", i_loop, ", Inner QDM var ", j, " ---\n"))
+                cat("Inner QDM o.c[,j] head:\n"); print(head(o.c[,j],2))
+                cat("Inner QDM m.c.iter.after.mrs[,j] head:\n"); print(head(m.c.iter.after.mrs[,j],2))
+                cat("Inner QDM m.p.iter.after.mrs[,j] head:\n"); print(head(m.p.iter.after.mrs[,j],2))
+            }
+            fit.qmap.inner <- QDM(o.c=o.c[,j], m.c=m.c.iter.after.mrs[,j], m.p=m.p.iter.after.mrs[,j], ratio=FALSE,
+                            n.tau=n.tau, pp.type=pp.type, trace=trace[j], trace.calc=trace.calc[j]) # Pass trace params
+            m.c.iter[,j] <- fit.qmap.inner$mhat.c # Update m.c.iter
+            m.p.iter[,j] <- fit.qmap.inner$mhat.p # Update m.p.iter
+            if(MBCP_ITER_DEBUG_R && i_loop == 1 && j == 1){
+                cat("Inner QDM m.c.iter[,j] (updated) head:\n"); print(head(m.c.iter[,j],2))
+                cat("Inner QDM m.p.iter[,j] (updated) head:\n"); print(head(m.p.iter[,j],2))
+            }
+        }
+        
+        if(MBCP_ITER_DEBUG_R && i_loop == 1){
+            cat("Summary m.c.iter (after inner QDM loop) head:\n"); print(summary(m.c.iter[,1:min(3,ncol(m.c.iter))])); print(head(m.c.iter[,1:min(3,ncol(m.c.iter))],2))
+        }
+
         # Check on Pearson correlation convergence
         if(cor.thresh > 0){
-            cor.j <- cor(m.c)
+            cor.j <- cor(m.c.iter)
             cor.j[is.na(cor.j)] <- 0
             cor.diff <- mean(abs(cor.j-cor.i))
             cor.i <- cor.j
         } else{
             cor.diff <- 0
         }
-        if(!silent) cat(i, cor.diff, '')
+        if(!silent) cat(i_loop, cor.diff, '')
+        if(MBCP_ITER_DEBUG_R && i_loop == 1){
+             cat("\ncor.diff for iter 1:", cor.diff, "\n")
+        }
         if(cor.diff < cor.thresh) break
     }
     if(!silent) cat('\n')
     # Replace with shuffled QDM elements
-    for(i in seq(ncol(o.c))){
-        m.c[,i] <- sort(m.c.qmap[,i])[rank(m.c[,i], ties.method=ties)]
-        m.p[,i] <- sort(m.p.qmap[,i])[rank(m.p[,i], ties.method=ties)]
+    # m.c.qmap and m.p.qmap are the results from the *initial* QDM pass
+    for(i_shuffle in seq(ncol(o.c))){ # Renamed loop variable
+        m.c.iter[,i_shuffle] <- sort(m.c.qmap[,i_shuffle])[rank(m.c.iter[,i_shuffle], ties.method=ties)]
+        m.p.iter[,i_shuffle] <- sort(m.p.qmap[,i_shuffle])[rank(m.p.iter[,i_shuffle], ties.method=ties)]
     }
-    list(mhat.c=m.c, mhat.p=m.p)
+    list(mhat.c=m.c.iter, mhat.p=m.p.iter)
 }
 
 ################################################################################

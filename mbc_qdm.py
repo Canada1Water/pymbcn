@@ -627,6 +627,9 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
          ratio_max_trace=10*0.05, ties='first', qmap_precalc=False, 
          silent=False, subsample=None, pp_type='linear'):
     """Multivariate quantile mapping bias correction (Pearson correlation)"""
+    global MRS_DEBUG_PRINT_PY # Allow modification of global
+    MBCP_ITER_DEBUG_PY = True # Set to TRUE for Python debug prints in MBCp
+
     n_vars = o_c.shape[1]
     o_c_arr = np.asarray(o_c)
     m_c_arr = np.asarray(m_c)
@@ -645,65 +648,114 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
 
     trace_calc_list = ensure_list_len(trace_calc, n_vars, 0.5*0.05)
     trace_list = ensure_list_len(trace, n_vars, 0.05)
-    jitter_factor_list = ensure_list_len(jitter_factor, n_vars, 0)
+    jitter_factor_list = ensure_list_len(jitter_factor, n_vars, 0) # For initial QDM
     ratio_max_list = ensure_list_len(ratio_max, n_vars, 2)
     ratio_max_trace_list = ensure_list_len(ratio_max_trace, n_vars, 10*0.05)
         
-    m_c_qmap_initial = m_c_arr.copy() # Store initial m_c for QDM
-    m_p_qmap_initial = m_p_arr.copy() # Store initial m_p for QDM
+    m_c_qmap_initial_orig_mc = m_c_arr.copy() # Original m_c for initial QDM
+    m_p_qmap_initial_orig_mp = m_p_arr.copy() # Original m_p for initial QDM
     
-    # These will be modified in the loop if !qmap_precalc
-    m_c_after_qdm = m_c_arr.copy() 
-    m_p_after_qdm = m_p_arr.copy()
+    # These will hold the results of the initial QDM pass.
+    # These are m.c.qmap and m.p.qmap in R, used for the final shuffle.
+    m_c_after_initial_qdm = np.empty_like(m_c_arr)
+    m_p_after_initial_qdm = np.empty_like(m_p_arr)
 
     if not qmap_precalc:
+        if MBCP_ITER_DEBUG_PY: print("--- MBCp DEBUG PY: Initial QDM ---")
         for i in range(n_vars):
-            fit_qmap = QDM(o_c_arr[:,i], m_c_qmap_initial[:,i], m_p_qmap_initial[:,i], # Use original m_c, m_p
+            if MBCP_ITER_DEBUG_PY and i == 0:
+                print("Initial QDM for var 0 - o_c_arr head:\n", o_c_arr[:2,i])
+                print("Initial QDM for var 0 - m_c_qmap_initial_orig_mc head:\n", m_c_qmap_initial_orig_mc[:2,i])
+                print("Initial QDM for var 0 - m_p_qmap_initial_orig_mp head:\n", m_p_qmap_initial_orig_mp[:2,i])
+            
+            fit_qmap = QDM(o_c_arr[:,i], m_c_qmap_initial_orig_mc[:,i], m_p_qmap_initial_orig_mp[:,i], 
                           ratio=ratio_seq_list[i], trace_calc=trace_calc_list[i],
-                          trace=trace_list[i], jitter_factor=jitter_factor_list[i],
+                          trace=trace_list[i], jitter_factor=jitter_factor_list[i], # Use per-var jitter
                           n_tau=n_tau, ratio_max=ratio_max_list[i],
                           ratio_max_trace=ratio_max_trace_list[i],
                           subsample=subsample, pp_type=pp_type, ties=ties)
-            m_c_after_qdm[:,i] = fit_qmap['mhat_c']
-            m_p_after_qdm[:,i] = fit_qmap['mhat_p']
-    
+            m_c_after_initial_qdm[:,i] = fit_qmap['mhat_c']
+            m_p_after_initial_qdm[:,i] = fit_qmap['mhat_p']
+            if MBCP_ITER_DEBUG_PY and i == 0:
+                print("Initial QDM for var 0 - m_c_after_initial_qdm head:\n", m_c_after_initial_qdm[:2,i])
+                print("Initial QDM for var 0 - m_p_after_initial_qdm head:\n", m_p_after_initial_qdm[:2,i])
+    else: # If qmap_precalc is True, assume m_c_arr and m_p_arr are already QDM'd
+        m_c_after_initial_qdm = m_c_arr.copy()
+        m_p_after_initial_qdm = m_p_arr.copy()
+
     # Iteration starts with QDM-corrected data
-    m_c_iter = m_c_after_qdm.copy()
-    m_p_iter = m_p_after_qdm.copy()
+    m_c_iter = m_c_after_initial_qdm.copy()
+    m_p_iter = m_p_after_initial_qdm.copy()
     
-    cor_i = np.corrcoef(m_c_iter, rowvar=False, ddof=1) # Pearson correlation, ddof=1 for sample cov
+    if MBCP_ITER_DEBUG_PY:
+        print("--- MBCp DEBUG PY: Before Loop ---")
+        print("Summary m_c_iter (after initial QDM, start of loop) head:\n", pd.DataFrame(m_c_iter[:,:min(3,m_c_iter.shape[1])]).describe())
+        print(m_c_iter[:2,:min(3,m_c_iter.shape[1])])
+
+    cor_i = np.corrcoef(m_c_iter, rowvar=False, ddof=1) 
     cor_i[np.isnan(cor_i)] = 0
     
-    o_c_cov = nearPD(np.cov(o_c_arr, rowvar=False, ddof=1))
-    o_c_chol = cholesky(o_c_cov, lower=False)
-    o_p_chol = o_c_chol 
+    o_c_cov_mat = np.cov(o_c_arr, rowvar=False, ddof=1) # Covariance of original observations
+    o_c_chol = cholesky(nearPD(o_c_cov_mat), lower=False)
+    o_p_chol = o_c_chol # Default in R
+    
+    if MBCP_ITER_DEBUG_PY:
+        print("cov(o_c_arr) head:\n", o_c_cov_mat[:min(3,o_c_cov_mat.shape[0]), :min(3,o_c_cov_mat.shape[1])])
+        print("o_c_chol head:\n", o_c_chol[:min(3,o_c_chol.shape[0]), :min(3,o_c_chol.shape[1])])
     
     for k_iter_loop in range(iter): 
+        if MBCP_ITER_DEBUG_PY and k_iter_loop == 0:
+            print(f"--- MBCp DEBUG PY: Iteration {k_iter_loop+1} ---")
+            print("Summary m_c_iter (start of iter) head:\n", pd.DataFrame(m_c_iter[:,:min(3,m_c_iter.shape[1])]).describe())
+            print(m_c_iter[:2,:min(3,m_c_iter.shape[1])])
+            
+            cov_m_c_iter_raw = np.cov(m_c_iter, rowvar=False, ddof=1)
+            print("cov(m_c_iter) (raw) head:\n", cov_m_c_iter_raw[:min(3,cov_m_c_iter_raw.shape[0]), :min(3,cov_m_c_iter_raw.shape[1])])
+            npd_m_c_iter_mat = nearPD(cov_m_c_iter_raw)
+            print("nearPD(cov(m_c_iter)) head:\n", npd_m_c_iter_mat[:min(3,npd_m_c_iter_mat.shape[0]), :min(3,npd_m_c_iter_mat.shape[1])])
+
         m_c_cov = nearPD(np.cov(m_c_iter, rowvar=False, ddof=1))
         m_c_chol = cholesky(m_c_cov, lower=False)
-        m_p_chol = m_c_chol 
+        m_p_chol = m_c_chol # Default in R
+
+        if MBCP_ITER_DEBUG_PY and k_iter_loop == 0:
+            print("m_c_chol head:\n", m_c_chol[:min(3,m_c_chol.shape[0]), :min(3,m_c_chol.shape[1])])
+            MRS_DEBUG_PRINT_PY = True
 
         # MRS uses o_c_arr (original obs), m_c_iter, m_p_iter
         fit_mbc = MRS(o_c_arr, m_c_iter, m_p_iter, o_c_chol=o_c_chol,
                      o_p_chol=o_p_chol, m_c_chol=m_c_chol, m_p_chol=m_p_chol)
         
+        if MBCP_ITER_DEBUG_PY and k_iter_loop == 0:
+            MRS_DEBUG_PRINT_PY = False
+            print("Summary fit_mbc['mhat_c'] (after MRS) head:\n", pd.DataFrame(fit_mbc['mhat_c'][:,:min(3,fit_mbc['mhat_c'].shape[1])]).describe())
+            print(fit_mbc['mhat_c'][:2,:min(3,fit_mbc['mhat_c'].shape[1])])
+        
         m_c_iter_after_mrs = fit_mbc['mhat_c']
         m_p_iter_after_mrs = fit_mbc['mhat_p']
         
-        # QDM step within MBCp loop (R uses ratio=FALSE here)
+        # Inner QDM loop
         for j in range(n_vars):
-            # R's internal QDM call in MBCp uses o.c[,j], m.c[,j], m.p[,j]
-            # where m.c and m.p are the *iterated* versions from MRS.
-            # It also uses ratio=FALSE, and a limited set of QDM params.
-            # Jitter is not explicitly passed in R's MBCp internal QDM, assume 0 or default.
-            # Trace params from outer scope.
+            if MBCP_ITER_DEBUG_PY and k_iter_loop == 0 and j == 0:
+                print(f"--- MBCp DEBUG PY: Iter {k_iter_loop+1}, Inner QDM var {j} ---")
+                print("Inner QDM o_c_arr[:,j] head:\n", o_c_arr[:2,j])
+                print("Inner QDM m_c_iter_after_mrs[:,j] head:\n", m_c_iter_after_mrs[:2,j])
+                print("Inner QDM m_p_iter_after_mrs[:,j] head:\n", m_p_iter_after_mrs[:2,j])
+
             fit_qmap_inner = QDM(o_c_arr[:,j], m_c_iter_after_mrs[:,j], m_p_iter_after_mrs[:,j], 
                                 ratio=False, # R uses ratio=FALSE
                                 n_tau=n_tau, pp_type=pp_type, 
                                 jitter_factor=0, # R's internal call doesn't seem to pass jitter
-                                trace=trace_list[j], trace_calc=trace_calc_list[j], ties=ties)
-            m_c_iter[:,j] = fit_qmap_inner['mhat_c'] # Update m_c_iter for next MRS or cor check
-            m_p_iter[:,j] = fit_qmap_inner['mhat_p'] # Update m_p_iter
+                                trace=trace_list[j], trace_calc=trace_calc_list[j], ties=ties) # Pass trace params
+            m_c_iter[:,j] = fit_qmap_inner['mhat_c'] 
+            m_p_iter[:,j] = fit_qmap_inner['mhat_p'] 
+            if MBCP_ITER_DEBUG_PY and k_iter_loop == 0 and j == 0:
+                print("Inner QDM m_c_iter[:,j] (updated) head:\n", m_c_iter[:2,j])
+                print("Inner QDM m_p_iter[:,j] (updated) head:\n", m_p_iter[:2,j])
+        
+        if MBCP_ITER_DEBUG_PY and k_iter_loop == 0:
+            print("Summary m_c_iter (after inner QDM loop) head:\n", pd.DataFrame(m_c_iter[:,:min(3,m_c_iter.shape[1])]).describe())
+            print(m_c_iter[:2,:min(3,m_c_iter.shape[1])])
             
         cor_j = np.corrcoef(m_c_iter, rowvar=False, ddof=1)
         cor_j[np.isnan(cor_j)] = 0
@@ -712,6 +764,9 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
             
         if not silent:
             print(f"{k_iter_loop+1} {cor_diff:.6g} ", end='') 
+        
+        if MBCP_ITER_DEBUG_PY and k_iter_loop == 0:
+            print(f"\ncor_diff for iter 1: {cor_diff}\n")
             
         if cor_diff < cor_thresh:
             break
@@ -719,7 +774,7 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
     if not silent:
         print()
         
-    # Final shuffle using the initially QDM'd outputs (m_c_after_qdm, m_p_after_qdm)
+    # Final shuffle using the initially QDM'd outputs (m_c_after_initial_qdm, m_p_after_initial_qdm)
     # and ranks of the final iterated values (m_c_iter, m_p_iter)
     rank_method_final = 'ordinal' if ties == 'first' else ties
 
@@ -730,8 +785,8 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
         ranks_c = rankdata(m_c_iter[:,i], method=rank_method_final) - 1 
         ranks_p = rankdata(m_p_iter[:,i], method=rank_method_final) - 1 
 
-        sorted_initial_qdm_c = np.sort(m_c_after_qdm[:,i])
-        sorted_initial_qdm_p = np.sort(m_p_after_qdm[:,i])
+        sorted_initial_qdm_c = np.sort(m_c_after_initial_qdm[:,i])
+        sorted_initial_qdm_p = np.sort(m_p_after_initial_qdm[:,i])
         
         ranks_c = np.clip(ranks_c, 0, len(sorted_initial_qdm_c)-1)
         ranks_p = np.clip(ranks_p, 0, len(sorted_initial_qdm_p)-1)
