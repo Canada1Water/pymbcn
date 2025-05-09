@@ -26,6 +26,25 @@ for (i in seq(ncol(cccma$gcm.c))) {
   qdm.p[, i] <- fit.qdm$mhat.p
 }
 
+# Huss Histograms (Original GCM_P vs QDM_P)
+if ("huss" %in% colnames(cccma$gcm.p)) {
+  huss_idx_r <- which(colnames(cccma$gcm.p) == "huss")
+  
+  png("huss_gcm_p_vs_qdm_p_histograms_r.png", width=1000, height=500)
+  par(mfrow = c(1, 2))
+  
+  hist(cccma$gcm.p[, huss_idx_r], breaks = 30, col = "blue", 
+       main = "Histogram of Original GCM Projection Data for Huss", xlab = "Huss Value")
+  
+  hist(qdm.p[, huss_idx_r], breaks = 30, col = "green", 
+       main = "Histogram of QDM Processed Data for Huss (Projection)", xlab = "Huss Value")
+  
+  dev.off()
+  cat("Huss GCM_P vs QDM_P R histograms saved to huss_gcm_p_vs_qdm_p_histograms_r.png\n")
+} else {
+  cat("Huss variable not found for R histogram plotting.\n")
+}
+
 # Multivariate MBCp bias correction
 fit.mbcp <- MBCp(o.c = cccma$rcm.c, m.c = cccma$gcm.c, m.p = cccma$gcm.p, 
                   ratio.seq = cccma$ratio.seq, trace = cccma$trace)

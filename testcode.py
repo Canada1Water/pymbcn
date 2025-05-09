@@ -112,6 +112,31 @@ for i in range(n_vars):
 
 print("Univariate QDM finished.")
 
+# --- Huss Histograms (Original GCM_P vs QDM_P) ---
+huss_col_idx_for_hist = variable_names.index('huss') if 'huss' in variable_names else -1
+if huss_col_idx_for_hist != -1:
+    plt.figure(figsize=(12, 6))
+
+    plt.subplot(1, 2, 1)
+    plt.hist(gcm_p_data[:, huss_col_idx_for_hist], bins=30, color='blue', alpha=0.7)
+    plt.title('Histogram of Original GCM Projection Data for Huss')
+    plt.xlabel('Huss Value')
+    plt.ylabel('Frequency')
+
+    plt.subplot(1, 2, 2)
+    plt.hist(qdm_p[:, huss_col_idx_for_hist], bins=30, color='green', alpha=0.7)
+    plt.title('Histogram of QDM Processed Data for Huss (Projection Period)')
+    plt.xlabel('Huss Value')
+    plt.ylabel('Frequency')
+
+    plt.tight_layout()
+    plt.savefig("huss_gcm_p_vs_qdm_p_histograms.png")
+    plt.close()
+    print("Huss GCM_P vs QDM_P histograms saved to huss_gcm_p_vs_qdm_p_histograms.png")
+else:
+    print("Huss variable not found for histogram plotting.")
+
+
 # --- Multivariate Bias Corrections ---
 print("\nRunning MBCp...")
 fit_mbcp = MBCp(o_c=rcm_c_data, m_c=gcm_c_data, m_p=gcm_p_data,
