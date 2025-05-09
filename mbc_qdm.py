@@ -199,10 +199,11 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
         if count_m_c > 0:
             m_c_arr[mask_m_c] = np.random.uniform(epsilon, trace_calc, count_m_c)
         # For m_p
-        mask_m_p = m_p_arr < trace_calc
-        count_m_p = np.sum(mask_m_p)
+        # Store indices of values below trace_calc for m_p
+        m_p_lt_trace_calc_idx = np.where(m_p_arr < trace_calc)[0]
+        count_m_p = len(m_p_lt_trace_calc_idx)
         if count_m_p > 0:
-            m_p_arr[mask_m_p] = np.random.uniform(epsilon, trace_calc, count_m_p)
+            m_p_arr[m_p_lt_trace_calc_idx] = np.random.uniform(epsilon, trace_calc, count_m_p)
         
         if debug_name is not None and len(m_p_arr) > 0:
             m_p_after_runif_first_val_for_debug = m_p_arr[0]
@@ -311,86 +312,56 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
             
     return {'mhat_c': mhat_c, 'mhat_p': mhat_p}
 
-def escore(x, y, scale_x=False, n_cases=None, alpha=1): # method not used by Python version
+def escore(x, y, scale_x=False, n_cases=None, alpha=1, method="cluster"):
     """Energy score for assessing equality of multivariate samples"""
     x_arr = np.asarray(x)
     y_arr = np.asarray(y)
 
     if x_arr.ndim == 1: x_arr = x_arr.reshape(-1, 1)
     if y_arr.ndim == 1: y_arr = y_arr.reshape(-1, 1)
-
-    # Initial NaN/Inf filtering based on both x and y
-    x_finite_mask_initial = np.all(np.isfinite(x_arr), axis=1)
-    y_finite_mask_initial = np.all(np.isfinite(y_arr), axis=1)
-    common_finite_mask_initial = x_finite_mask_initial & y_finite_mask_initial
     
-    x_clean = x_arr[common_finite_mask_initial]
-    y_clean = y_arr[common_finite_mask_initial]
-    
-    if x_clean.shape[0] < 2 or y_clean.shape[0] < 2: 
-        return np.nan
-
-    x_proc = x_clean.copy() # Use copies for processing
-    y_proc = y_clean.copy()
+    n_x = x_arr.shape[0]
+    n_y = y_arr.shape[0]
 
     if scale_x:
-        mean_x = np.mean(x_proc, axis=0)
-        std_x = np.std(x_proc, axis=0, ddof=1)
+        # Scale x and use same parameters to scale y
+        mean_x = np.mean(x_arr, axis=0)
+        std_x = np.std(x_arr, axis=0, ddof=1)
+        std_x[std_x < np.finfo(float).eps] = 1.0  # Avoid division by zero
         
-        # Create scaled versions, initially as float to allow NaNs
-        x_scaled = np.zeros_like(x_proc, dtype=float)
-        y_scaled = np.zeros_like(y_proc, dtype=float)
-
-        for j in range(x_proc.shape[1]):
-            if std_x[j] > 1e-12: # Effectively non-zero std for reference x column
-                x_scaled[:,j] = (x_proc[:,j] - mean_x[j]) / std_x[j]
-                y_scaled[:,j] = (y_proc[:,j] - mean_x[j]) / std_x[j]
-            else: 
-                # R's scale() would produce NaNs for x_col if sd is 0.
-                # And y_col scaled by 0 or NA scale factor also becomes NaN/Inf.
-                # These dimensions are effectively ignored by energy::edist.
-                x_scaled[:,j] = np.nan 
-                y_scaled[:,j] = np.nan
+        x_scaled = (x_arr - mean_x) / std_x
+        y_scaled = (y_arr - mean_x) / std_x
         
-        x_proc = x_scaled
-        y_proc = y_scaled
-
-        # Re-filter NaNs that might have been introduced by scaling constant columns
-        x_finite_mask_scaled = np.all(np.isfinite(x_proc), axis=1)
-        y_finite_mask_scaled = np.all(np.isfinite(y_proc), axis=1)
-        common_finite_mask_scaled = x_finite_mask_scaled & y_finite_mask_scaled
-        
-        x_proc = x_proc[common_finite_mask_scaled]
-        y_proc = y_proc[common_finite_mask_scaled]
-
-        if x_proc.shape[0] < 2 or y_proc.shape[0] < 2:
-            return np.nan # Not enough data after scaling and NaN removal
+        x_arr = x_scaled
+        y_arr = y_scaled
     
     if n_cases is not None:
-        n_current_proc = x_proc.shape[0] 
-        actual_n_cases = min(n_current_proc, n_cases)
-        if actual_n_cases >= 1: 
-            idx_x = np.random.choice(x_proc.shape[0], actual_n_cases, replace=False)
-            idx_y = np.random.choice(y_proc.shape[0], actual_n_cases, replace=False) # y_proc has same length as x_proc here
-            x_proc = x_proc[idx_x]
-            y_proc = y_proc[idx_y]
-        else:
-            return np.nan 
-            
-    if x_proc.shape[0] < 1 or y_proc.shape[0] < 1 or x_proc.shape[1] == 0: 
-        # If all dimensions were removed due to constant columns in x, shape[1] could be 0
-        return np.nan
-
-    d_xx = cdist(x_proc, x_proc, 'euclidean')
-    d_yy = cdist(y_proc, y_proc, 'euclidean')
-    d_xy = cdist(x_proc, y_proc, 'euclidean')
-
-    term1 = np.mean(d_xy) if d_xy.size > 0 else 0.0
-    term2 = 0.5 * (np.mean(d_xx) if d_xx.size > 0 else 0.0)
-    term3 = 0.5 * (np.mean(d_yy) if d_yy.size > 0 else 0.0)
+        n_cases = min(n_x, n_y, n_cases)
+        if n_cases >= 1:
+            x_indices = np.random.choice(n_x, size=n_cases, replace=False)
+            y_indices = np.random.choice(n_y, size=n_cases, replace=False)
+            x_arr = x_arr[x_indices]
+            y_arr = y_arr[y_indices]
+            n_x = n_y = n_cases
+    
+    # Combine x and y for distance calculation
+    combined = np.vstack((x_arr, y_arr))
+    
+    # Calculate pairwise distances
+    distances = cdist(combined, combined, 'euclidean')
+    
+    # Extract the relevant blocks
+    d_xx = distances[:n_x, :n_x]
+    d_yy = distances[n_x:, n_x:]
+    d_xy = distances[:n_x, n_x:]
+    
+    # Calculate energy statistic
+    term1 = np.mean(d_xy)
+    term2 = 0.5 * np.mean(d_xx)
+    term3 = 0.5 * np.mean(d_yy)
     
     result = term1 - term2 - term3
-    return result
+    return result / 2  # Divide by 2 to match R's energy::edist behavior
 
 
 def MRS(o_c, m_c, m_p, o_c_chol=None, o_p_chol=None, m_c_chol=None, m_p_chol=None):
@@ -886,7 +857,7 @@ def MBCn(o_c, m_c, m_p, iter=30, ratio_seq=None, trace=0.05,
     
     if n_escore > 0: 
         if current_n_escore > 0:
-            escore_iter_values[1] = escore(o_c_arr[escore_idx_o_c], m_c_iter[escore_idx_m_c], scale_x=True)
+            escore_iter_values[1] = escore(o_c_arr[escore_cases_o_c], m_c_iter[escore_cases_m_c], scale_x=True)
             if not silent: print(f"QDM {escore_iter_values[1]:.6g} : ", end='')
         else: escore_iter_values[1] = np.nan
     
@@ -950,7 +921,7 @@ def MBCn(o_c, m_c, m_p, iter=30, ratio_seq=None, trace=0.05,
         if n_escore > 0:
             if current_n_escore > 0:
                 # Escore uses original o_c_arr and the unstandardized m_c_temp_unstd
-                escore_val = escore(o_c_arr[escore_idx_o_c], m_c_temp_unstd[escore_idx_m_c], scale_x=True)
+                escore_val = escore(o_c_arr[escore_cases_o_c], m_c_temp_unstd[escore_cases_m_c], scale_x=True)
                 escore_iter_values[k_iter_loop+2] = escore_val
                 if not silent: print(f"{escore_val:.6g} : ", end='')
             else: escore_iter_values[k_iter_loop+2] = np.nan
