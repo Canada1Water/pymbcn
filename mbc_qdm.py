@@ -259,8 +259,16 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
     # Apply quantile delta mapping
     # np.interp needs xp to be increasing. Quantiles should be.
     # Handle rule=2: np.interp default behavior matches rule=2 (extrapolates with endpoint values)
-    tau_m_p = np.interp(m_p_arr, quant_m_p, tau, left=tau[0], right=tau[-1]) 
-    
+
+    # For tau_m_p: R uses approx(quant.m.p, tau, m.p, ties='ordered')
+    # quant_m_p can have ties. tau is sorted and unique.
+    unique_quant_m_p, unique_indices_m_p = np.unique(quant_m_p, return_index=True)
+    tau_for_m_p_interp = tau[unique_indices_m_p]
+    tau_m_p = np.interp(m_p_arr, unique_quant_m_p, tau_for_m_p_interp,
+                        left=tau_for_m_p_interp[0], right=tau_for_m_p_interp[-1])
+
+    # For approx_t_qmc_val_py and approx_t_qoc_val_py: R uses approx(tau, quant.m.c, tau.m.p, ties='ordered')
+    # Here, `tau` is the `x` argument which is sorted and unique. So, direct np.interp is fine.
     approx_t_qmc_val_py = np.interp(tau_m_p, tau, quant_m_c, left=quant_m_c[0], right=quant_m_c[-1])
     approx_t_qoc_val_py = np.interp(tau_m_p, tau, quant_o_c, left=quant_o_c[0], right=quant_o_c[-1])
 
@@ -278,7 +286,12 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
         delta_m = m_p_arr - approx_t_qmc_val_py
         mhat_p = approx_t_qoc_val_py + delta_m
 
-    mhat_c = np.interp(m_c_arr, quant_m_c, quant_o_c, left=quant_o_c[0], right=quant_o_c[-1])
+    # For mhat_c: R uses approx(quant.m.c, quant.o.c, m.c, ties='ordered')
+    # quant_m_c can have ties.
+    unique_quant_m_c, unique_indices_m_c = np.unique(quant_m_c, return_index=True)
+    quant_o_c_for_m_c_interp = quant_o_c[unique_indices_m_c]
+    mhat_c = np.interp(m_c_arr, unique_quant_m_c, quant_o_c_for_m_c_interp,
+                       left=quant_o_c_for_m_c_interp[0], right=quant_o_c_for_m_c_interp[-1])
     
     if debug_name == "pr_initial_qdm_mp_debug" and ratio and len(mhat_p) > 0:
         print("--- QDM DEBUG PY (pr_initial_qdm_mp_debug, ratio=T) ---")

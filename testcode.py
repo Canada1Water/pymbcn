@@ -141,6 +141,24 @@ mbcn_c = fit_mbcn['mhat_c']
 mbcn_p = fit_mbcn['mhat_p']
 print("MBCn finished.\n")
 
+# --- Huss Data Summaries for Calibration Plots ---
+huss_col_idx = variable_names.index('huss') if 'huss' in variable_names else -1
+if huss_col_idx != -1:
+    print("--- Python Huss Summaries for Calibration Data ---")
+    print(f"Summary of qdm_c[:, 'huss']:\n{pd.Series(qdm_c[:, huss_col_idx]).describe()}")
+    print(f"Min: {np.min(qdm_c[:, huss_col_idx]):.6e}, Max: {np.max(qdm_c[:, huss_col_idx]):.6e}, Mean: {np.mean(qdm_c[:, huss_col_idx]):.6e}\n")
+
+    print(f"Summary of mbcp_c[:, 'huss']:\n{pd.Series(mbcp_c[:, huss_col_idx]).describe()}")
+    print(f"Min: {np.min(mbcp_c[:, huss_col_idx]):.6e}, Max: {np.max(mbcp_c[:, huss_col_idx]):.6e}, Mean: {np.mean(mbcp_c[:, huss_col_idx]):.6e}\n")
+
+    print(f"Summary of mbcr_c[:, 'huss']:\n{pd.Series(mbcr_c[:, huss_col_idx]).describe()}")
+    print(f"Min: {np.min(mbcr_c[:, huss_col_idx]):.6e}, Max: {np.max(mbcr_c[:, huss_col_idx]):.6e}, Mean: {np.mean(mbcr_c[:, huss_col_idx]):.6e}\n")
+
+    print(f"Summary of mbcn_c[:, 'huss']:\n{pd.Series(mbcn_c[:, huss_col_idx]).describe()}")
+    print(f"Min: {np.min(mbcn_c[:, huss_col_idx]):.6e}, Max: {np.max(mbcn_c[:, huss_col_idx]):.6e}, Mean: {np.mean(mbcn_c[:, huss_col_idx]):.6e}\n")
+else:
+    print("Huss variable not found for summary printing.")
+
 
 # --- Analysis Functions ---
 def plot_correlations(obs, model, title_prefix, var_names, period_label):
