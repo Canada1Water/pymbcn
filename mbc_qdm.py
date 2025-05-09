@@ -49,6 +49,9 @@ from scipy.spatial.distance import cdist
 from scipy.linalg import solve # Explicit import
 from scipy.stats import rankdata
 
+# --- Global flag for MRS diagnostics ---
+MRS_DEBUG_PRINT_PY = False
+
 # Helper function for nearPD
 def _ensure_symmetric(A):
     return (A + A.T) / 2
@@ -398,6 +401,7 @@ def escore(x, y, scale_x=False, n_cases=None, alpha=1): # method not used by Pyt
 
 def MRS(o_c, m_c, m_p, o_c_chol=None, o_p_chol=None, m_c_chol=None, m_p_chol=None):
     """Multivariate rescaling based on Cholesky decomposition"""
+    global MRS_DEBUG_PRINT_PY # Allow modification of global
     o_c_arr = np.asarray(o_c)
     m_c_arr = np.asarray(m_c)
     m_p_arr = np.asarray(m_p)
@@ -425,16 +429,14 @@ def MRS(o_c, m_c, m_p, o_c_chol=None, o_p_chol=None, m_c_chol=None, m_p_chol=Non
     # Bias correction factors: R's solve(A) %*% B is A_inv @ B
     # Python's solve(A, B) solves Ax = B for x. So x = A_inv @ B.
     # This matches R's solve(m.c.chol) %*% o.c.chol
-    mbcfactor = solve(m_c_chol.T, o_c_chol.T).T # R: solve(U) %*% V. If U is upper.
-                                                # Python: solve(U, V) -> U X = V -> X = U^-1 V
-                                                # If we use lower=False, cholesky returns U.
-                                                # R: m.c %*% (solve(m.c.chol) %*% o.c.chol)
-                                                #    m.c %*% (U_mc^-1 @ U_oc)
-                                                # Python: m_c_cent @ (U_mc_inv @ U_oc)
-                                                # Let factor = U_mc_inv @ U_oc.
-                                                # U_mc @ factor = U_oc. So factor = solve(U_mc, U_oc)
-                                                # This seems correct.
+    mbcfactor = solve(m_c_chol.T, o_c_chol.T).T 
     mbpfactor = solve(m_p_chol, o_p_chol)
+
+    if MRS_DEBUG_PRINT_PY:
+        print("--- MRS DEBUG (Python) ---")
+        print("mbcfactor (head):\n", mbcfactor[:min(3, mbcfactor.shape[0]), :min(3, mbcfactor.shape[1])])
+        print("mbpfactor (head):\n", mbpfactor[:min(3, mbpfactor.shape[0]), :min(3, mbpfactor.shape[1])])
+        print("--- END MRS DEBUG (Python) ---")
     
     # Multivariate bias correction
     mbc_c = m_c_cent @ mbcfactor
@@ -476,6 +478,9 @@ def MBCr(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
          ratio_max_trace=10*0.05, ties='first', qmap_precalc=False, # ties for initial rank and loop rank
          silent=False, subsample=None, pp_type='linear'):
     """Multivariate quantile mapping bias correction (Spearman correlation)"""
+    global MRS_DEBUG_PRINT_PY # Allow modification of global
+    MBCR_ITER_DEBUG_PY = True # Set to TRUE for Python debug prints in MBCr
+
     n_vars = o_c.shape[1]
     o_c_arr = np.asarray(o_c)
     m_c_arr = np.asarray(m_c)
@@ -532,6 +537,20 @@ def MBCr(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
     cor_i = np.corrcoef(m_c_r, rowvar=False, ddof=1) # Spearman uses ranks, then Pearson on ranks. ddof=1 for sample cov.
     cor_i[np.isnan(cor_i)] = 0 
     
+    if MBCR_ITER_DEBUG_PY:
+        print("--- MBCr DEBUG PY: Before Loop ---")
+        print("Summary o_c_r (head):\n", pd.DataFrame(o_c_r[:,:min(3,o_c_r.shape[1])]).describe())
+        print(o_c_r[:2,:min(3,o_c_r.shape[1])])
+        print("Summary m_c_r (initial, head):\n", pd.DataFrame(m_c_r[:,:min(3,m_c_r.shape[1])]).describe())
+        print(m_c_r[:2,:min(3,m_c_r.shape[1])])
+        print("Summary m_p_r (initial, head):\n", pd.DataFrame(m_p_r[:,:min(3,m_p_r.shape[1])]).describe())
+        print(m_p_r[:2,:min(3,m_p_r.shape[1])])
+        
+        cov_o_c_r_raw = np.cov(o_c_r, rowvar=False, ddof=1)
+        print("cov(o_c_r) (raw) head:\n", cov_o_c_r_raw[:min(3,cov_o_c_r_raw.shape[0]), :min(3,cov_o_c_r_raw.shape[1])])
+        npd_o_c_r_mat = nearPD(cov_o_c_r_raw)
+        print("nearPD(cov(o_c_r)) head:\n", npd_o_c_r_mat[:min(3,npd_o_c_r_mat.shape[0]), :min(3,npd_o_c_r_mat.shape[1])])
+
     # Iterative MBC/reranking
     # R's chol is upper by default. Pass lower=False to np.linalg.cholesky
     # ddof=1 for sample covariance matrix, as R's cov() default.
@@ -539,16 +558,44 @@ def MBCr(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
     o_c_chol = cholesky(o_c_cov_r, lower=False) 
     o_p_chol = o_c_chol 
     
+    if MBCR_ITER_DEBUG_PY:
+        print("o_c_chol head:\n", o_c_chol[:min(3,o_c_chol.shape[0]), :min(3,o_c_chol.shape[1])])
+
     for k_iter_loop in range(iter): 
+        if MBCR_ITER_DEBUG_PY and k_iter_loop == 0:
+            print(f"--- MBCr DEBUG PY: Iteration {k_iter_loop+1} ---")
+            print("Summary m_c_r (start of iter, head):\n", pd.DataFrame(m_c_r[:,:min(3,m_c_r.shape[1])]).describe())
+            print(m_c_r[:2,:min(3,m_c_r.shape[1])])
+            
+            cov_m_c_r_raw = np.cov(m_c_r, rowvar=False, ddof=1)
+            print("cov(m_c_r) (raw) head:\n", cov_m_c_r_raw[:min(3,cov_m_c_r_raw.shape[0]), :min(3,cov_m_c_r_raw.shape[1])])
+            npd_m_c_r_mat = nearPD(cov_m_c_r_raw)
+            print("nearPD(cov(m_c_r)) head:\n", npd_m_c_r_mat[:min(3,npd_m_c_r_mat.shape[0]), :min(3,npd_m_c_r_mat.shape[1])])
+
         m_c_cov_r = nearPD(np.cov(m_c_r, rowvar=False, ddof=1))
         m_c_chol = cholesky(m_c_cov_r, lower=False)
         m_p_chol = m_c_chol 
 
+        if MBCR_ITER_DEBUG_PY and k_iter_loop == 0:
+            print("m_c_chol head:\n", m_c_chol[:min(3,m_c_chol.shape[0]), :min(3,m_c_chol.shape[1])])
+            MRS_DEBUG_PRINT_PY = True # Enable MRS debug prints
+
         fit_mbc = MRS(o_c_r, m_c_r, m_p_r, o_c_chol=o_c_chol,
                      o_p_chol=o_p_chol, m_c_chol=m_c_chol, m_p_chol=m_p_chol)
+        
+        if MBCR_ITER_DEBUG_PY and k_iter_loop == 0:
+            MRS_DEBUG_PRINT_PY = False # Disable MRS debug prints
+            print("Summary fit_mbc['mhat_c'] (after MRS, head):\n", pd.DataFrame(fit_mbc['mhat_c'][:,:min(3,fit_mbc['mhat_c'].shape[1])]).describe())
+            print(fit_mbc['mhat_c'][:2,:min(3,fit_mbc['mhat_c'].shape[1])])
+
 
         m_c_r = np.apply_along_axis(rankdata, 0, fit_mbc['mhat_c'], method=rank_method_loop)
         m_p_r = np.apply_along_axis(rankdata, 0, fit_mbc['mhat_p'], method=rank_method_loop)
+
+        if MBCR_ITER_DEBUG_PY and k_iter_loop == 0:
+            print("Summary m_c_r (after re-ranking, head):\n", pd.DataFrame(m_c_r[:,:min(3,m_c_r.shape[1])]).describe())
+            print(m_c_r[:2,:min(3,m_c_r.shape[1])])
+
 
         cor_j = np.corrcoef(m_c_r, rowvar=False, ddof=1)
         cor_j[np.isnan(cor_j)] = 0
@@ -558,6 +605,9 @@ def MBCr(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
         if not silent:
             # R prints 1-based iteration, mean equality of ranks, cor_diff
             print(f"{k_iter_loop+1} {np.mean(m_c_r == m_c_i_rank_check):.6f} {cor_diff:.6g} ", end='')
+        
+        if MBCR_ITER_DEBUG_PY and k_iter_loop == 0:
+            print(f"\ncor_diff for iter 1: {cor_diff}\n")
             
         if cor_diff < cor_thresh:
             break

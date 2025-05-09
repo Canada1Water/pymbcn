@@ -160,6 +160,9 @@ function (x, y, scale.x = FALSE, n.cases = NULL, alpha = 1, method = "cluster")
 #  Matching Marginal Distributions and Inter-variable Dependence Structure.
 #  Journal of Climate, doi:10.1175/JCLI-D-15-0679.1
 
+# --- Global flag for MRS diagnostics ---
+.MRS_DEBUG_PRINT <- FALSE 
+
 MRS <-
 # Multivariate rescaling based on Cholesky decomposition of the covariance
 #  matrix
@@ -174,21 +177,29 @@ function(o.c, m.c, m.p, o.c.chol=NULL, o.p.chol=NULL, m.c.chol=NULL,
     o.c.mean <- colMeans(o.c)
     m.c.mean <- colMeans(m.c)
     m.p.mean <- colMeans(m.p)
-    o.c <- sweep(o.c, 2, o.c.mean, '-')
-    m.c <- sweep(m.c, 2, m.c.mean, '-')
-    m.p <- sweep(m.p, 2, m.p.mean, '-')
+    o.c.cent <- sweep(o.c, 2, o.c.mean, '-') # Renamed for clarity
+    m.c.cent <- sweep(m.c, 2, m.c.mean, '-') # Renamed for clarity
+    m.p.cent <- sweep(m.p, 2, m.p.mean, '-') # Renamed for clarity
     # Cholesky decomposition of covariance matrix
     # If !is.null(o.p.chol) --> projected target
-    if(is.null(o.c.chol)) o.c.chol <- chol(cov(o.c))
-    if(is.null(o.p.chol)) o.p.chol <- chol(cov(o.c))
-    if(is.null(m.c.chol)) m.c.chol <- chol(cov(m.c))
-    if(is.null(m.p.chol)) m.p.chol <- chol(cov(m.c))
+    if(is.null(o.c.chol)) o.c.chol <- chol(cov(o.c.cent)) # Use centered data for cov
+    if(is.null(o.p.chol)) o.p.chol <- chol(cov(o.c.cent)) # Use centered data for cov
+    if(is.null(m.c.chol)) m.c.chol <- chol(cov(m.c.cent)) # Use centered data for cov
+    if(is.null(m.p.chol)) m.p.chol <- chol(cov(m.c.cent)) # Use centered data for cov
     # Bias correction factors
     mbcfactor <- solve(m.c.chol) %*% o.c.chol
     mbpfactor <- solve(m.p.chol) %*% o.p.chol
+
+    if(exists(".MRS_DEBUG_PRINT") && .MRS_DEBUG_PRINT){
+        cat("--- MRS DEBUG (R) ---\n")
+        cat("mbcfactor:\n"); print(head(mbcfactor)); cat("...\n")
+        cat("mbpfactor:\n"); print(head(mbpfactor)); cat("...\n")
+        cat("--- END MRS DEBUG (R) ---\n")
+    }
+
     # Multivariate bias correction
-    mbc.c <- m.c %*% mbcfactor
-    mbc.p <- m.p %*% mbpfactor
+    mbc.c <- m.c.cent %*% mbcfactor
+    mbc.p <- m.p.cent %*% mbpfactor
     # Recenter and account for change in means
     mbc.c <- sweep(mbc.c, 2, o.c.mean, '+')
     mbc.p <- sweep(mbc.p, 2, o.c.mean, '+')
@@ -206,6 +217,9 @@ function(o.c, m.c, m.p, iter=20, cor.thresh=1e-4,
          trace.calc=0.5*trace, jitter.factor=0, n.tau=NULL, ratio.max=2,
          ratio.max.trace=10*trace, ties='first', qmap.precalc=FALSE,
          silent=FALSE, subsample=NULL, pp.type=7){
+
+    MBCR_ITER_DEBUG_R <- TRUE # Set to TRUE for R debug prints in MBCr
+
     if(length(trace.calc)==1)
         trace.calc <- rep(trace.calc, ncol(o.c))
     if(length(trace)==1)
@@ -243,14 +257,59 @@ function(o.c, m.c, m.p, iter=20, cor.thresh=1e-4,
     } else{
         cor.diff <- 0
     }
+
+    if(MBCR_ITER_DEBUG_R){
+        cat("--- MBCr DEBUG R: Before Loop ---\n")
+        cat("Summary o.c.r:\n"); print(summary(o.c.r[,1:min(3,ncol(o.c.r))])); print(head(o.c.r[,1:min(3,ncol(o.c.r))],2))
+        cat("Summary m.c.r (initial):\n"); print(summary(m.c.r[,1:min(3,ncol(m.c.r))])); print(head(m.c.r[,1:min(3,ncol(m.c.r))],2))
+        cat("Summary m.p.r (initial):\n"); print(summary(m.p.r[,1:min(3,ncol(m.p.r))])); print(head(m.p.r[,1:min(3,ncol(m.p.r))],2))
+        
+        cov.o.c.r.raw <- cov(o.c.r)
+        cat("cov(o.c.r) (raw) head:\n"); print(head(cov.o.c.r.raw[,1:min(3,ncol(cov.o.c.r.raw))]))
+        npd.o.c.r.obj <- nearPD(cov.o.c.r.raw)
+        cat("nearPD(cov(o.c.r))$mat head:\n"); print(head(npd.o.c.r.obj$mat[,1:min(3,ncol(npd.o.c.r.obj$mat))]))
+    }
+
     # Iterative MBC/reranking
     o.c.chol <- o.p.chol <- as.matrix(chol(nearPD(cov(o.c.r))$mat))
-    for(i in seq(iter)){
+    
+    if(MBCR_ITER_DEBUG_R){
+         cat("o.c.chol head:\n"); print(head(o.c.chol[,1:min(3,ncol(o.c.chol))]))
+    }
+
+    for(i_loop in seq(iter)){ # Renamed loop variable to i_loop
+        if(MBCR_ITER_DEBUG_R && i_loop == 1){
+            cat(paste0("--- MBCr DEBUG R: Iteration ", i_loop, " ---\n"))
+            cat("Summary m.c.r (start of iter):\n"); print(summary(m.c.r[,1:min(3,ncol(m.c.r))])); print(head(m.c.r[,1:min(3,ncol(m.c.r))],2))
+            
+            cov.m.c.r.raw <- cov(m.c.r)
+            cat("cov(m.c.r) (raw) head:\n"); print(head(cov.m.c.r.raw[,1:min(3,ncol(cov.m.c.r.raw))]))
+            npd.m.c.r.obj <- nearPD(cov.m.c.r.raw)
+            cat("nearPD(cov(m.c.r))$mat head:\n"); print(head(npd.m.c.r.obj$mat[,1:min(3,ncol(npd.m.c.r.obj$mat))]))
+        }
+
         m.c.chol <- m.p.chol <- as.matrix(chol(nearPD(cov(m.c.r))$mat))
+
+        if(MBCR_ITER_DEBUG_R && i_loop == 1){
+            cat("m.c.chol head:\n"); print(head(m.c.chol[,1:min(3,ncol(m.c.chol))]))
+            .MRS_DEBUG_PRINT <<- TRUE # Enable MRS debug prints for this call
+        }
+
         fit.mbc <- MRS(o.c=o.c.r, m.c=m.c.r, m.p=m.p.r, o.c.chol=o.c.chol,
                        o.p.chol=o.p.chol, m.c.chol=m.c.chol, m.p.chol=m.p.chol)
+        
+        if(MBCR_ITER_DEBUG_R && i_loop == 1){
+            .MRS_DEBUG_PRINT <<- FALSE # Disable MRS debug prints after the call
+            cat("Summary fit.mbc$mhat.c (after MRS):\n"); print(summary(fit.mbc$mhat.c[,1:min(3,ncol(fit.mbc$mhat.c))])); print(head(fit.mbc$mhat.c[,1:min(3,ncol(fit.mbc$mhat.c))],2))
+        }
+
         m.c.r <- apply(fit.mbc$mhat.c, 2, rank, ties.method=ties)
         m.p.r <- apply(fit.mbc$mhat.p, 2, rank, ties.method=ties)
+
+        if(MBCR_ITER_DEBUG_R && i_loop == 1){
+            cat("Summary m.c.r (after re-ranking):\n"); print(summary(m.c.r[,1:min(3,ncol(m.c.r))])); print(head(m.c.r[,1:min(3,ncol(m.c.r))],2))
+        }
+
         if(cor.thresh > 0){
             # Check on Spearman correlation convergence
             cor.j <- cor(m.c.r)
@@ -259,17 +318,20 @@ function(o.c, m.c, m.p, iter=20, cor.thresh=1e-4,
             cor.i <- cor.j
         }
         if(!silent){
-            cat(i, mean(m.c.r==m.c.i), cor.diff, '')
+            cat(i_loop, mean(m.c.r==m.c.i), cor.diff, '')
+        }
+        if(MBCR_ITER_DEBUG_R && i_loop == 1){
+             cat("\ncor.diff for iter 1:", cor.diff, "\n")
         }
         if(cor.diff < cor.thresh) break
         if(identical(m.c.r, m.c.i)) break
         m.c.i <- m.c.r
     }
     if(!silent) cat('\n')
-    for(i in seq(ncol(o.c))){
+    for(i_shuffle in seq(ncol(o.c))){ # Renamed loop variable
         # Replace ordinal ranks with QDM outputs
-        m.c.r[,i] <- sort(m.c.qmap[,i])[m.c.r[,i]]
-        m.p.r[,i] <- sort(m.p.qmap[,i])[m.p.r[,i]]
+        m.c.r[,i_shuffle] <- sort(m.c.qmap[,i_shuffle])[m.c.r[,i_shuffle]]
+        m.p.r[,i_shuffle] <- sort(m.p.qmap[,i_shuffle])[m.p.r[,i_shuffle]]
     }
     list(mhat.c=m.c.r, mhat.p=m.p.r)
 }
