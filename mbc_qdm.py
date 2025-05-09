@@ -818,14 +818,15 @@ def MBCn(o_c, m_c, m_p, iter=30, ratio_seq=None, trace=0.05,
     escore_iter_values = np.full(iter+2, np.nan) 
     
     # For consistent escore calculation if n_escore is used
-    escore_idx_o_c, escore_idx_m_c = None, None
+    escore_cases_o_c, escore_cases_m_c = None, None
     current_n_escore = 0
     if n_escore > 0:
         current_n_escore = min(o_c_arr.shape[0], m_c_arr.shape[0], n_escore)
         if current_n_escore > 0:
-            escore_idx_o_c = np.random.choice(o_c_arr.shape[0], current_n_escore, replace=False)
-            escore_idx_m_c = np.random.choice(m_c_arr.shape[0], current_n_escore, replace=False)
-            escore_iter_values[0] = escore(o_c_arr[escore_idx_o_c], m_c_arr[escore_idx_m_c], scale_x=True)
+            # Use the same approach as R to select indices
+            escore_cases_o_c = np.unique(np.arange(o_c_arr.shape[0])[:current_n_escore])
+            escore_cases_m_c = np.unique(np.arange(m_c_arr.shape[0])[:current_n_escore])
+            escore_iter_values[0] = escore(o_c_arr[escore_cases_o_c], m_c_arr[escore_cases_m_c], scale_x=True)
             if not silent: print(f"RAW {escore_iter_values[0]:.6g} : ", end='')
         else: escore_iter_values[0] = np.nan
 
