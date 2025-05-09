@@ -98,7 +98,7 @@ panel.hist <- function(x, ...) {
     h <- hist(x, plot = FALSE, breaks="Sturges") # Or use a fixed number of breaks
     breaks <- h$breaks; nB <- length(breaks)
     y <- h$counts; y <- y/max(y)
-    rect(breaks[-nB], 0, breaks[-1], y, col="cyan", ...)
+    rect(breaks[-nB], 0, breaks[-1], y, ...) # Removed col="cyan"
 }
 
 # Pairwise scatterplots
