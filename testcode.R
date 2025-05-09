@@ -8,6 +8,17 @@ source("MBC-QDM.R")
 load("cccma.RData") 
 set.seed(1)
 
+# --- Correct ratio flag for 'huss' ---
+if ("huss" %in% colnames(cccma$gcm.c)) {
+  huss_idx_r <- which(colnames(cccma$gcm.c) == "huss")
+  if (length(huss_idx_r) == 1 && cccma$ratio.seq[huss_idx_r]) { # If it's currently TRUE
+    cat(paste0("Correcting cccma$ratio.seq for 'huss' (index ", huss_idx_r, ") from TRUE to FALSE.\n"))
+    cccma$ratio.seq[huss_idx_r] <- FALSE
+  }
+} else {
+  cat("Warning: 'huss' not found in colnames(cccma$gcm.c). Cannot correct its ratio flag.\n")
+}
+
 # Univariate quantile mapping
 qdm.c <- cccma$gcm.c * 0
 qdm.p <- cccma$gcm.p * 0
