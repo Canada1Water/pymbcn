@@ -23,7 +23,9 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
          ECBC=FALSE, ties='first', subsample=NULL, pp.type=7, debug_name=NULL){ # Added debug_name
     
     # Temporary print to trace debug_name and ratio
-    if(!is.null(debug_name) || ratio == FALSE){ # Print if debug_name is set OR if it's huss (implicit check via ratio)
+    # Adjusted condition to be more explicit for specific debug names or if ratio is FALSE
+    if( (!is.null(debug_name) && (debug_name == "huss_qdm_debug" || debug_name == "pr_initial_qdm_mp_debug")) || 
+        (is.logical(ratio) && ratio == FALSE) ){
         cat(paste("--- R QDM CALLED --- debug_name:", ifelse(is.null(debug_name), "NULL", debug_name), ", ratio:", ratio, "\n"))
     }
 

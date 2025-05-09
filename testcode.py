@@ -85,6 +85,9 @@ for i in range(n_vars):
     debug_name_for_mhat_c = None
     if variable_names[i] == "huss":
         debug_name_for_mhat_c = "huss_qdm_mhat_c_debug"
+    
+    # --- Diagnostic print for current variable and its ratio flag ---
+    print(f"PY UNIQDM LOOP - Var: {variable_names[i]}, Index: {i}, Ratio Flag: {py_ratio_seq[i]}, Debug_mhat_c: {debug_name_for_mhat_c}, Debug_mhat_p: {current_debug_name_py}")
 
     fit_qdm_c = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
                    m_p=gcm_c_data[:, i],  # m_p is gcm_c_data for control period correction

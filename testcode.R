@@ -20,6 +20,9 @@ for (i in seq(ncol(cccma$gcm.c))) {
   if (colnames(cccma$gcm.c)[i] == "huss") { 
       current_debug_name <- "huss_qdm_debug"
   }
+  # --- Diagnostic print for current variable and its ratio flag ---
+  cat(paste0("R UNIQDM LOOP - Var: ", colnames(cccma$gcm.c)[i], ", Index: ", i, ", Ratio Flag: ", cccma$ratio.seq[i], ", Debug Name: ", ifelse(is.null(current_debug_name), "NULL", current_debug_name), "\n"))
+  
   fit.qdm <- QDM(o.c = cccma$rcm.c[, i], m.c = cccma$gcm.c[, i], m.p = cccma$gcm.p[, i], 
                  ratio = cccma$ratio.seq[i], trace = cccma$trace[i], debug_name = current_debug_name)
   qdm.c[, i] <- fit.qdm$mhat.c
