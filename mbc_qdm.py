@@ -53,116 +53,84 @@ from scipy.stats import rankdata
 def _ensure_symmetric(A):
     return (A + A.T) / 2
 
-def nearPD(A, epsilon_eig=1e-6, epsilon_chol_jitter=1e-9, max_iter=100, conv_tol=1e-7):
+def nearPD(A, epsilon_eig=1e-6, chol_jitter_factor=1e-9, max_jitter_iter=10):
     """
     Computes the nearest positive definite matrix to A.
-    Uses eigenvalue adjustment and iterative jittering if Cholesky fails.
-    Based on Higham's (2002) algorithm and R's Matrix::nearPD implementation.
-    A: input matrix (should be symmetric or will be symmetrized)
-    epsilon_eig: smallest allowed eigenvalue if direct eigenvalue adjustment is used.
-    epsilon_chol_jitter: initial jitter factor for Cholesky attempts.
-    max_iter: maximum iterations for the main algorithm.
-    conv_tol: convergence tolerance for the iterative algorithm.
+    Primarily uses eigenvalue thresholding. If Cholesky still fails,
+    applies iterative diagonal jitter.
+    A: input matrix
+    epsilon_eig: smallest allowed eigenvalue.
+    chol_jitter_factor: initial factor for diagonal jitter if eigenvalue method isn't enough.
+    max_jitter_iter: maximum iterations for jittering.
     """
     X = np.asarray(A)
     if X.ndim != 2 or X.shape[0] != X.shape[1]:
         raise ValueError("Input must be a square 2D matrix.")
 
-    # Symmetrize
+    # Ensure symmetry
     Y = _ensure_symmetric(X)
 
-    # Iteration for Higham's algorithm
-    D_s = np.zeros_like(Y)
-    for i in range(max_iter):
-        Y_prev = Y.copy()
-        R_k = Y - D_s
-        
-        # Polar decomposition of R_k
-        try:
-            # SVD: R_k = U @ S @ Vh
-            U, s, Vh = np.linalg.svd(R_k, full_matrices=False)
-            H = Vh.T @ np.diag(s) @ Vh # H = R_k.T @ R_k, H is P in R_k = UP
-                                       # P_k = U S U.T (symmetric part of polar decomposition)
-            P_k = U @ np.diag(s) @ U.T # This is the symmetric polar factor
-        except np.linalg.LinAlgError:
-            # If SVD fails, try to make Y more PD and continue
-            jitter = epsilon_chol_jitter * (10**i) * np.mean(np.abs(np.diag(Y)))
-            Y = _ensure_symmetric(Y + np.eye(Y.shape[0]) * (jitter + epsilon_chol_jitter))
-            if i == max_iter -1:
-                # print("Warning: nearPD SVD failed in iteration.")
-                break # Exit loop, try final adjustment
-            continue
+    # Eigenvalue decomposition
+    try:
+        eigvals, eigvecs = np.linalg.eigh(Y)
+    except np.linalg.LinAlgError:
+        # If eigh fails, fall back to jittering the original symmetric matrix Y
+        # print("Warning: nearPD eigendecomposition failed. Proceeding with jittering.")
+        eigvals = None # Signal that eigenvalue adjustment was skipped
 
-        # Update Y
-        Y = P_k
+    if eigvals is not None:
+        # Adjust eigenvalues: set any eigenvalue < epsilon_eig to epsilon_eig
+        # R's Matrix::nearPD uses eig.tol * max_eigenvalue as threshold.
+        # Using a fixed epsilon_eig is simpler and common.
+        # max_eig = np.max(eigvals) if len(eigvals) > 0 else 1.0
+        # current_epsilon_eig = epsilon_eig * max_eig if max_eig > 0 else epsilon_eig
+        current_epsilon_eig = epsilon_eig # Using fixed epsilon
 
-        # Update D_s (diagonal shift part)
-        D_s = Y - R_k # This is not how D_s is updated in Higham's direct algorithm.
-                      # R's nearPD uses a different approach for the "symmetric part"
-                      # Let's follow R's Matrix::nearPD logic more closely for the main iteration.
-                      # The R version uses an iterative process involving eigenvalue decomposition.
-
-        # Re-evaluate: R's nearPD uses eigenvalue decomposition and reconstruction.
-        # Let's use a simpler eigenvalue adjustment if direct Cholesky fails,
-        # and then the iterative jittering if that's not enough.
-
-        # Try Cholesky on current Y
-        try:
-            np.linalg.cholesky(Y)
-            return Y # If Cholesky succeeds, Y is PD
-        except np.linalg.LinAlgError:
-            pass # Continue to eigenvalue adjustment / jittering
-
-        # Eigenvalue adjustment
-        try:
-            eigvals, eigvecs = np.linalg.eigh(Y)
-        except np.linalg.LinAlgError:
-             # If eigendecomposition fails, add more jitter and retry
-            jitter = epsilon_chol_jitter * (10**i) * np.mean(np.abs(np.diag(Y)))
-            Y = _ensure_symmetric(Y + np.eye(Y.shape[0]) * (jitter + epsilon_chol_jitter))
-            if i == max_iter -1:
-                # print(f"Warning: nearPD eigendecomposition failed after {max_iter} attempts.")
-                break
-            continue
-
-        # Set small or negative eigenvalues to a small positive value (epsilon_eig)
-        # R's nearPD ensures eigenvalues are >= eig.tol * max_eigenvalue
-        max_eig = np.max(eigvals) if len(eigvals) > 0 else 1.0
-        min_eig_thresh = epsilon_eig * max_eig if max_eig > 0 else epsilon_eig
-
-        if np.any(eigvals < min_eig_thresh):
-            eigvals[eigvals < min_eig_thresh] = min_eig_thresh
+        if np.any(eigvals < current_epsilon_eig):
+            eigvals[eigvals < current_epsilon_eig] = current_epsilon_eig
             Y = _ensure_symmetric(eigvecs @ np.diag(eigvals) @ eigvecs.T)
-
-        # Check for convergence (norm of change in Y)
-        if np.linalg.norm(Y - Y_prev, 'fro') < conv_tol * np.linalg.norm(Y_prev, 'fro'):
-            break
+        # If all eigenvalues were already >= current_epsilon_eig, Y is unchanged from symmetric X
     
-    # Final attempt to make it PD for Cholesky via jittering if still not PD
-    # This is a fallback if the main loop didn't result in a PD matrix
-    # that passes Cholesky.
-    for j_iter in range(10): # Try jittering a few times
+    # Try Cholesky on the eigenvalue-adjusted matrix
+    try:
+        np.linalg.cholesky(Y)
+        return Y # Success
+    except np.linalg.LinAlgError:
+        # print("Warning: Cholesky failed after eigenvalue adjustment. Attempting jitter.")
+        pass # Proceed to jittering
+
+    # If Cholesky failed after eigenvalue adjustment (or eigh failed), try jittering
+    # This Y is either from eigenvalue adjustment or the initial symmetric X if eigh failed.
+    Y_jittered = Y.copy()
+    for i in range(max_jitter_iter):
         try:
-            np.linalg.cholesky(Y)
-            return Y # Success
-        except np.linalg.LinAlgError:
-            # Add small jitter to diagonal
-            # The amount of jitter might need to be scaled by the magnitude of Y's diagonal
-            diag_mean_abs = np.mean(np.abs(np.diag(Y)))
-            if diag_mean_abs < np.finfo(float).eps: diag_mean_abs = 1.0 # Avoid zero scaling factor
+            # Add jitter: scaled identity matrix
+            # Scale jitter by mean of diagonal elements to make it somewhat relative
+            diag_mean_abs = np.mean(np.abs(np.diag(Y_jittered)))
+            if diag_mean_abs < np.finfo(float).eps: diag_mean_abs = 1.0
             
-            jitter_val = (epsilon_chol_jitter * (10**j_iter)) * diag_mean_abs
-            if jitter_val < np.finfo(float).eps: # Ensure jitter_val is not too small
-                jitter_val = epsilon_chol_jitter * (10**j_iter)
+            current_jitter = (chol_jitter_factor * (10**i)) * diag_mean_abs
+            if current_jitter < np.finfo(float).eps: # Ensure jitter is not too small
+                 current_jitter = chol_jitter_factor * (10**i)
+            
+            # Add to a fresh copy of Y to avoid accumulating jitter if Y itself was not PD enough
+            # Or jitter Y_jittered iteratively
+            Y_to_try = _ensure_symmetric(Y_jittered + np.eye(Y.shape[0]) * current_jitter)
 
-            Y = _ensure_symmetric(Y + np.eye(Y.shape[0]) * jitter_val)
-            if j_iter == 9: # Last jitter attempt
-                # print(f"Warning: nearPD Cholesky failed after main loop and {j_iter+1} jitter attempts.")
-                pass
-
-    # As a very last resort, if Cholesky still fails, return the best Y.
-    # The caller (cholesky function) will then handle the LinAlgError.
-    # This function's job is to get it "near" PD.
+            np.linalg.cholesky(Y_to_try)
+            return Y_to_try # Success
+        except np.linalg.LinAlgError:
+            if i == max_jitter_iter - 1:
+                # print(f"Warning: nearPD Cholesky failed after {max_jitter_iter} jitter attempts. Returning best effort before last jitter.")
+                # Return the matrix before the last, potentially destabilizing, jitter
+                # Or, could return Y_to_try (the last attempt)
+                # R's nearPD would return its last best estimate.
+                # Let's return the matrix that was last attempted with Cholesky.
+                return Y_to_try 
+    
+    # Should ideally not be reached if max_jitter_iter is > 0 and jitter is applied.
+    # However, if all attempts fail, return the eigenvalue-adjusted (or initial symmetric) Y.
+    # print("Warning: nearPD exhausted options. Returning eigenvalue-adjusted/symmetrized matrix.")
     return Y
 
 

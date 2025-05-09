@@ -143,8 +143,8 @@ def plot_correlations(obs, model, title_prefix, var_names, period_label):
     # Pearson correlation
     plt.subplot(1, 2, 1)
     with np.errstate(invalid='ignore', divide='ignore'): 
-        obs_pearson = np.corrcoef(obs, rowvar=False, ddof=1) # ddof=1 for sample correlation
-        model_pearson = np.corrcoef(model, rowvar=False, ddof=1)
+        obs_pearson = np.corrcoef(obs, rowvar=False) 
+        model_pearson = np.corrcoef(model, rowvar=False)
     obs_pearson = np.nan_to_num(obs_pearson)
     model_pearson = np.nan_to_num(model_pearson)
     plt.scatter(obs_pearson.ravel(), model_pearson.ravel(), c='black', alpha=0.5, label='Corrected')
@@ -200,9 +200,9 @@ def plot_r_style_correlations(obs_ref_c, obs_ref_p, qdm_c_data, qdm_p_data, mbc_
     # Pearson Calibration
     plt.subplot(2, 2, 1)
     with np.errstate(invalid='ignore', divide='ignore'):
-        cor_obs_ref_c = np.corrcoef(obs_ref_c, rowvar=False, ddof=1)
-        cor_qdm_c = np.corrcoef(qdm_c_data, rowvar=False, ddof=1)
-        cor_mbc_c = np.corrcoef(mbc_c_data, rowvar=False, ddof=1)
+        cor_obs_ref_c = np.corrcoef(obs_ref_c, rowvar=False)
+        cor_qdm_c = np.corrcoef(qdm_c_data, rowvar=False)
+        cor_mbc_c = np.corrcoef(mbc_c_data, rowvar=False)
     plt.scatter(np.nan_to_num(cor_obs_ref_c).ravel(), np.nan_to_num(cor_qdm_c).ravel(), color='black', marker='o', label='QDM')
     plt.scatter(np.nan_to_num(cor_obs_ref_c).ravel(), np.nan_to_num(cor_mbc_c).ravel(), color='red', marker='x', label=mbc_method_name)
     plt.plot([-1, 1], [-1, 1], 'k--'); plt.grid(True); plt.axis('equal'); plt.xlim(-1, 1); plt.ylim(-1, 1)
@@ -211,9 +211,9 @@ def plot_r_style_correlations(obs_ref_c, obs_ref_p, qdm_c_data, qdm_p_data, mbc_
     # Pearson Evaluation
     plt.subplot(2, 2, 2)
     with np.errstate(invalid='ignore', divide='ignore'):
-        cor_obs_ref_p = np.corrcoef(obs_ref_p, rowvar=False, ddof=1)
-        cor_qdm_p = np.corrcoef(qdm_p_data, rowvar=False, ddof=1)
-        cor_mbc_p = np.corrcoef(mbc_p_data, rowvar=False, ddof=1)
+        cor_obs_ref_p = np.corrcoef(obs_ref_p, rowvar=False)
+        cor_qdm_p = np.corrcoef(qdm_p_data, rowvar=False)
+        cor_mbc_p = np.corrcoef(mbc_p_data, rowvar=False)
     plt.scatter(np.nan_to_num(cor_obs_ref_p).ravel(), np.nan_to_num(cor_qdm_p).ravel(), color='black', marker='o')
     plt.scatter(np.nan_to_num(cor_obs_ref_p).ravel(), np.nan_to_num(cor_mbc_p).ravel(), color='red', marker='x')
     plt.plot([-1, 1], [-1, 1], 'k--'); plt.grid(True); plt.axis('equal'); plt.xlim(-1, 1); plt.ylim(-1, 1)
@@ -224,6 +224,8 @@ def plot_r_style_correlations(obs_ref_c, obs_ref_p, qdm_c_data, qdm_p_data, mbc_
     def get_spearman_cor(data):
         mat, _ = spearmanr(data, axis=0, nan_policy='propagate')
         if data.shape[1] == 1: return np.array([[1.0]])
+        if np.isscalar(mat): # Handle case where spearmanr might return scalar for multiple identical columns
+            return np.diag(np.full(data.shape[1], mat))
         return np.nan_to_num(mat)
     
     cor_obs_ref_c_s = get_spearman_cor(obs_ref_c)
@@ -266,8 +268,14 @@ def plot_pairs(data, title, var_names_list, diagonal='kde', color_hex='#0000001A
 
     fig = plt.figure(figsize=(12, 12)) 
     try:
-        axes = pd.plotting.scatter_matrix(df, diagonal=diagonal, alpha=float(int(color_hex[-2:], 16))/255.0, 
-                                          c=color_hex[:-2], s=5, hist_kwds={'color': color_hex[:-2]}) # Pass color to hist
+        # Ensure color for hist_kwds is just the hex color, not with alpha
+        hist_color = color_hex[:-2] if len(color_hex) == 9 and color_hex[0] == '#' else color_hex
+        
+        axes = pd.plotting.scatter_matrix(df, diagonal=diagonal, alpha=float(int(color_hex[-2:], 16))/255.0 if len(color_hex) == 9 else 0.5, 
+                                          c=color_hex[:-2] if len(color_hex) == 9 else color_hex, 
+                                          s=5, 
+                                          hist_kwds={'color': hist_color, 'bins': 20}, # Added bins for better hist
+                                          density_kwds={'color': hist_color}) # Color for KDE
         plt.suptitle(title)
         # Axis adjustments (e.g., for 'huss') can be added here if needed
         # Based on R code, no specific axis limits, but huss might need non-negative.
