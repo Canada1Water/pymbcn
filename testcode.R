@@ -20,10 +20,52 @@ for (i in seq(ncol(cccma$gcm.c))) {
   if (colnames(cccma$gcm.c)[i] == "huss") { 
       current_debug_name <- "huss_qdm_debug"
   }
+  current_trace_r <- cccma$trace[i]
+  current_trace_calc_r <- 0.5 * current_trace_r # Default relationship
+
   fit.qdm <- QDM(o.c = cccma$rcm.c[, i], m.c = cccma$gcm.c[, i], m.p = cccma$gcm.p[, i], 
-                 ratio = cccma$ratio.seq[i], trace = cccma$trace[i]) # Removed debug_name
-  qdm.c[, i] <- fit.qdm$mhat.c
-  qdm.p[, i] <- fit.qdm$mhat.p
+                 ratio = cccma$ratio.seq[i], 
+                 trace = current_trace_r, 
+                 trace.calc = current_trace_calc_r, # Pass trace_calc explicitly
+                 debug_name = current_debug_name) # current_debug_name from earlier logic
+  
+  temp_qdm_c <- fit.qdm$mhat.c
+  temp_qdm_p <- fit.qdm$mhat.p
+
+  # Adaptive thresholding for ratio variables if correlation is low
+  if (cccma$ratio.seq[i]) {
+    original_gcm_p_series_r <- cccma$gcm.p[, i]
+    corrected_qdm_p_series_r <- temp_qdm_p
+    
+    # Check for non-zero standard deviation
+    if (sd(original_gcm_p_series_r, na.rm = TRUE) > 1e-9 && sd(corrected_qdm_p_series_r, na.rm = TRUE) > 1e-9) {
+      correlation_r <- NA
+      tryCatch({
+        correlation_r <- cor(original_gcm_p_series_r, corrected_qdm_p_series_r, use = "pairwise.complete.obs")
+      }, error = function(e) {
+        cat(paste0("R UNIQDM LOOP - Var: ", colnames(cccma$gcm.c)[i], ", Error calculating correlation: ", e$message, "\n"))
+      })
+      
+      if (!is.na(correlation_r) && correlation_r < 0.8) {
+        cat(paste0("R UNIQDM LOOP - Var: ", colnames(cccma$gcm.c)[i], ", Low correlation (", sprintf("%.2f", correlation_r), ") with original trace ", sprintf("%.4f", current_trace_r), ". Adjusting trace.\n"))
+        adjusted_trace_r <- current_trace_r * 2.0
+        adjusted_trace_calc_r <- 0.5 * adjusted_trace_r
+        cat(paste0("R UNIQDM LOOP - Var: ", colnames(cccma$gcm.c)[i], ", New trace: ", sprintf("%.4f", adjusted_trace_r), ", New trace_calc: ", sprintf("%.4f", adjusted_trace_calc_r), "\n"))
+        
+        fit.qdm.adjusted <- QDM(o.c = cccma$rcm.c[, i], m.c = cccma$gcm.c[, i], m.p = cccma$gcm.p[, i], 
+                               ratio = cccma$ratio.seq[i], 
+                               trace = adjusted_trace_r, 
+                               trace.calc = adjusted_trace_calc_r,
+                               debug_name = current_debug_name)
+        temp_qdm_c <- fit.qdm.adjusted$mhat.c # Update both if QDM is re-run
+        temp_qdm_p <- fit.qdm.adjusted$mhat.p
+      }
+    } else {
+      cat(paste0("R UNIQDM LOOP - Var: ", colnames(cccma$gcm.c)[i], ", Skipping correlation check due to zero variance in time series.\n"))
+    }
+  }
+  qdm.c[, i] <- temp_qdm_c
+  qdm.p[, i] <- temp_qdm_p
 }
 
 # --- GCM_P vs QDM_P Histograms and Time Series Plots for all variables ---

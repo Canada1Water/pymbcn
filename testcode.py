@@ -81,24 +81,67 @@ for i in range(n_vars):
         current_debug_name_py = "huss_qdm_debug"
 
     # QDM for control period:
+    # Determine debug name for mhat_c (specifically for huss if needed)
+    debug_name_mhat_c_py = None
+    if variable_names[i] == "huss": # Example: if you wanted specific debug for huss mhat_c
+        # debug_name_mhat_c_py = "huss_qdm_mhat_c_debug" # Currently no such specific debug in QDM
+        pass
+
     fit_qdm_c = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
                    m_p=gcm_c_data[:, i],  # m_p is gcm_c_data for control period correction
                    ratio=py_ratio_seq[i], 
-                   trace=py_trace_val[i], 
+                   trace=py_trace_val[i],
+                   trace_calc=0.5 * py_trace_val[i], # Explicitly pass trace_calc
                    jitter_factor=0, 
                    ties='first',   
-                   pp_type='linear') # Removed debug_name
+                   pp_type='linear',
+                   debug_name=debug_name_mhat_c_py)
     qdm_c[:, i] = fit_qdm_c['mhat_c']
 
     # QDM for projection period (mhat_p is desired):
+    current_trace_for_p = py_trace_val[i]
+    current_trace_calc_for_p = 0.5 * current_trace_for_p
+
     fit_qdm_p = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
                    m_p=gcm_p_data[:, i], 
                    ratio=py_ratio_seq[i], 
-                   trace=py_trace_val[i], 
+                   trace=current_trace_for_p,
+                   trace_calc=current_trace_calc_for_p,
                    jitter_factor=0, 
                    ties='first',    
-                   pp_type='linear') # Removed debug_name
+                   pp_type='linear',
+                   debug_name=current_debug_name_py) # current_debug_name_py from earlier logic
     qdm_p[:, i] = fit_qdm_p['mhat_p']
+
+    # Adaptive thresholding for ratio variables if correlation is low
+    if py_ratio_seq[i]:
+        original_gcm_p_series = gcm_p_data[:, i]
+        corrected_qdm_p_series = qdm_p[:, i]
+        
+        # Check for non-zero standard deviation before calculating correlation
+        if np.std(original_gcm_p_series) > 1e-9 and np.std(corrected_qdm_p_series) > 1e-9:
+            try:
+                correlation = np.corrcoef(original_gcm_p_series, corrected_qdm_p_series)[0, 1]
+                if not np.isnan(correlation) and correlation < 0.8:
+                    print(f"PY UNIQDM LOOP - Var: {variable_names[i]}, Low correlation ({correlation:.2f}) with original trace {current_trace_for_p:.4f}. Adjusting trace.")
+                    adjusted_trace_for_p = current_trace_for_p * 2.0
+                    adjusted_trace_calc_for_p = 0.5 * adjusted_trace_for_p
+                    print(f"PY UNIQDM LOOP - Var: {variable_names[i]}, New trace: {adjusted_trace_for_p:.4f}, New trace_calc: {adjusted_trace_calc_for_p:.4f}")
+
+                    fit_qdm_p_adjusted = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
+                                           m_p=gcm_p_data[:, i], 
+                                           ratio=py_ratio_seq[i], 
+                                           trace=adjusted_trace_for_p,
+                                           trace_calc=adjusted_trace_calc_for_p,
+                                           jitter_factor=0, 
+                                           ties='first',    
+                                           pp_type='linear',
+                                           debug_name=current_debug_name_py)
+                    qdm_p[:, i] = fit_qdm_p_adjusted['mhat_p']
+            except Exception as e:
+                print(f"PY UNIQDM LOOP - Var: {variable_names[i]}, Error calculating correlation or re-running QDM: {e}")
+        else:
+            print(f"PY UNIQDM LOOP - Var: {variable_names[i]}, Skipping correlation check due to zero variance in time series.")
 
 print("Univariate QDM finished.")
 
