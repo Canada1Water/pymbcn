@@ -91,19 +91,29 @@ points(c(cor(cccma$rcm.p, method = 'spearman')), c(cor(mbcp.p, method = 'spearma
 # MBCr plots...
 # MBCn plots...
 
+# Helper function for histogram on pairs plot diagonal
+panel.hist <- function(x, ...) {
+    usr <- par("usr"); on.exit(par(usr))
+    par(usr = c(usr[1:2], 0, 1.5) )
+    h <- hist(x, plot = FALSE, breaks="Sturges") # Or use a fixed number of breaks
+    breaks <- h$breaks; nB <- length(breaks)
+    y <- h$counts; y <- y/max(y)
+    rect(breaks[-nB], 0, breaks[-1], y, col="cyan", ...)
+}
+
 # Pairwise scatterplots
 dev.new()
-pairs(cccma$gcm.c, main = 'CanESM2 calibration', col = '#0000001A')
+pairs(cccma$gcm.c, main = 'CanESM2 calibration', col = '#0000001A', diag.panel = panel.hist, upper.panel=NULL, lower.panel=panel.smooth)
 dev.new()
-pairs(cccma$rcm.c, main = 'CanRCM4 calibration', col = '#0000001A')
+pairs(cccma$rcm.c, main = 'CanRCM4 calibration', col = '#0000001A', diag.panel = panel.hist, upper.panel=NULL, lower.panel=panel.smooth)
 dev.new()
-pairs(qdm.c, main = 'QDM calibration', col = '#0000001A')
+pairs(qdm.c, main = 'QDM calibration', col = '#0000001A', diag.panel = panel.hist, upper.panel=NULL, lower.panel=panel.smooth)
 dev.new()
-pairs(mbcp.c, main = 'MBCp calibration', col = '#FF00001A')
+pairs(mbcp.c, main = 'MBCp calibration', col = '#FF00001A', diag.panel = panel.hist, upper.panel=NULL, lower.panel=panel.smooth)
 dev.new()
-pairs(mbcr.c, main = 'MBCr calibration', col = '#0000FF1A')
+pairs(mbcr.c, main = 'MBCr calibration', col = '#0000FF1A', diag.panel = panel.hist, upper.panel=NULL, lower.panel=panel.smooth)
 dev.new()
-pairs(mbcn.c, main = 'MBCn calibration', col = '#FFA5001A')
+pairs(mbcn.c, main = 'MBCn calibration', col = '#FFA5001A', diag.panel = panel.hist, upper.panel=NULL, lower.panel=panel.smooth)
 
 # Energy distance skill score relative to univariate QDM
 escore.qdm <- escore(cccma$rcm.p, qdm.p, scale.x = TRUE)
