@@ -305,98 +305,77 @@ def escore(x, y, scale_x=False, n_cases=None, alpha=1): # method not used by Pyt
     if x_arr.ndim == 1: x_arr = x_arr.reshape(-1, 1)
     if y_arr.ndim == 1: y_arr = y_arr.reshape(-1, 1)
 
-    # Handle NaNs by removing rows where *either* x or y has NaN/Inf
-    # This ensures x_clean and y_clean have the same number of rows and correspond.
-    x_finite_mask = np.all(np.isfinite(x_arr), axis=1)
-    y_finite_mask = np.all(np.isfinite(y_arr), axis=1)
-    common_finite_mask = x_finite_mask & y_finite_mask
+    # Initial NaN/Inf filtering based on both x and y
+    x_finite_mask_initial = np.all(np.isfinite(x_arr), axis=1)
+    y_finite_mask_initial = np.all(np.isfinite(y_arr), axis=1)
+    common_finite_mask_initial = x_finite_mask_initial & y_finite_mask_initial
     
-    x_clean = x_arr[common_finite_mask]
-    y_clean = y_arr[common_finite_mask]
+    x_clean = x_arr[common_finite_mask_initial]
+    y_clean = y_arr[common_finite_mask_initial]
     
-    if x_clean.shape[0] < 2 or y_clean.shape[0] < 2 or x_clean.shape[0] != y_clean.shape[0]: 
-        # Need at least 2 points for cdist mean, and equal number of points after cleaning
+    if x_clean.shape[0] < 2 or y_clean.shape[0] < 2: 
         return np.nan
 
-    if scale_x:
-        # Scale x (reference)
-        mean_x = np.mean(x_clean, axis=0)
-        # ddof=0 for x (obs) to match R's scale default when scaling factor is provided by user (implicitly here)
-        # R's scale(x, center=TRUE, scale=TRUE) uses sd with n-1.
-        # However, the R escore function calls scale(x) then scale(y, center=attr(x,"scaled:center"), scale=attr(x,"scaled:scale"))
-        # This means y is scaled by x's sample sd (n-1).
-        # For consistency, let's use ddof=1 for std_x if it's to be used for y.
-        std_x = np.std(x_clean, axis=0, ddof=1) 
-        
-        x_scaled = np.zeros_like(x_clean, dtype=float)
-        for j in range(x_clean.shape[1]):
-            if std_x[j] > 1e-12: # Effectively non-zero std
-                x_scaled[:,j] = (x_clean[:,j] - mean_x[j]) / std_x[j]
-            else: # Zero std, R's scale() results in 0s (x_col - mean_x_col = 0)
-                x_scaled[:,j] = 0.0 # x_clean[:,j] - mean_x[j] would also be 0
-        x_proc = x_scaled
+    x_proc = x_clean.copy() # Use copies for processing
+    y_proc = y_clean.copy()
 
-        # Scale y using mean_x and std_x (from x_clean)
-        y_scaled = np.zeros_like(y_clean, dtype=float)
-        for j in range(y_clean.shape[1]):
-            if std_x[j] > 1e-12: # Use std_x for scaling y
-                y_scaled[:,j] = (y_clean[:,j] - mean_x[j]) / std_x[j]
-            else:
-                # If std_x[j] is zero, R's scale() results in y_col - mean_x_col
-                y_scaled[:,j] = y_clean[:,j] - mean_x[j]
+    if scale_x:
+        mean_x = np.mean(x_proc, axis=0)
+        std_x = np.std(x_proc, axis=0, ddof=1)
+        
+        # Create scaled versions, initially as float to allow NaNs
+        x_scaled = np.zeros_like(x_proc, dtype=float)
+        y_scaled = np.zeros_like(y_proc, dtype=float)
+
+        for j in range(x_proc.shape[1]):
+            if std_x[j] > 1e-12: # Effectively non-zero std for reference x column
+                x_scaled[:,j] = (x_proc[:,j] - mean_x[j]) / std_x[j]
+                y_scaled[:,j] = (y_proc[:,j] - mean_x[j]) / std_x[j]
+            else: 
+                # R's scale() would produce NaNs for x_col if sd is 0.
+                # And y_col scaled by 0 or NA scale factor also becomes NaN/Inf.
+                # These dimensions are effectively ignored by energy::edist.
+                x_scaled[:,j] = np.nan 
+                y_scaled[:,j] = np.nan
+        
+        x_proc = x_scaled
         y_proc = y_scaled
-    else:
-        x_proc = x_clean
-        y_proc = y_clean
+
+        # Re-filter NaNs that might have been introduced by scaling constant columns
+        x_finite_mask_scaled = np.all(np.isfinite(x_proc), axis=1)
+        y_finite_mask_scaled = np.all(np.isfinite(y_proc), axis=1)
+        common_finite_mask_scaled = x_finite_mask_scaled & y_finite_mask_scaled
+        
+        x_proc = x_proc[common_finite_mask_scaled]
+        y_proc = y_proc[common_finite_mask_scaled]
+
+        if x_proc.shape[0] < 2 or y_proc.shape[0] < 2:
+            return np.nan # Not enough data after scaling and NaN removal
     
     if n_cases is not None:
-        n_proc = x_proc.shape[0] # x_proc and y_proc have same length here
-        actual_n_cases = min(n_proc, n_cases)
-        if actual_n_cases >= 1: # Need at least 1 for choice
-            # Sample common indices if we want to maintain correspondence from original sampling
-            # Or sample independently if that's the R behavior (R samples x and y independently)
-            # R: x <- x[sample(n.x, size = n.cases), , drop = FALSE]
-            #    y <- y[sample(n.y, size = n.cases), , drop = FALSE]
-            # This implies independent sampling from the (already potentially downsampled) x_proc, y_proc
+        n_current_proc = x_proc.shape[0] 
+        actual_n_cases = min(n_current_proc, n_cases)
+        if actual_n_cases >= 1: 
             idx_x = np.random.choice(x_proc.shape[0], actual_n_cases, replace=False)
-            idx_y = np.random.choice(y_proc.shape[0], actual_n_cases, replace=False)
+            idx_y = np.random.choice(y_proc.shape[0], actual_n_cases, replace=False) # y_proc has same length as x_proc here
             x_proc = x_proc[idx_x]
             y_proc = y_proc[idx_y]
         else:
-            return np.nan # Not enough data for n_cases sampling
+            return np.nan 
             
-    if x_proc.shape[0] < 1 or y_proc.shape[0] < 1: # cdist needs at least 1 row
+    if x_proc.shape[0] < 1 or y_proc.shape[0] < 1 or x_proc.shape[1] == 0: 
+        # If all dimensions were removed due to constant columns in x, shape[1] could be 0
         return np.nan
-
-    # cdist requires at least 1 observation in each matrix.
-    # If x_proc has 1 row, d_xx is [[0]]. If 0 rows, error.
-    # If x_proc or y_proc has 0 rows at this point, it's an issue.
-    if x_proc.shape[0] == 0 or y_proc.shape[0] == 0: return np.nan
-
 
     d_xx = cdist(x_proc, x_proc, 'euclidean')
     d_yy = cdist(y_proc, y_proc, 'euclidean')
     d_xy = cdist(x_proc, y_proc, 'euclidean')
 
-    # np.mean of empty array (if d_xx has 0 elements due to 0 rows) is nan.
-    # If x_proc has 1 row, d_xx is [[0]], mean is 0.
     term1 = np.mean(d_xy) if d_xy.size > 0 else 0.0
-    # For d_xx and d_yy, if only one point, mean is 0. If two points, it's the distance.
-    # R's edist calculation: 2*S1 - S2 - S3, where S1=mean(dist(X,Y)), S2=mean(dist(X,X)), S3=mean(dist(Y,Y))
-    # The R wrapper then divides by 2. So (2*S1 - S2 - S3)/2 = S1 - S2/2 - S3/2.
     term2 = 0.5 * (np.mean(d_xx) if d_xx.size > 0 else 0.0)
     term3 = 0.5 * (np.mean(d_yy) if d_yy.size > 0 else 0.0)
     
     result = term1 - term2 - term3
-    
-    # The R escore wrapper in MBC-QDM.R divides by 2.
-    # energy::edist itself does not, but the R wrapper does.
-    # So, Python should also divide by 2 to match the R script's escore output.
-    # This was already there, but the formula from energy package is E = A - B/2 - C/2
-    # where A = E||X-Y||, B=E||X-X'||, C=E||Y-Y'||.
-    # The R code `edist(rbind(x, y), sizes = c(n.x, n.y), ...)[1]/2`
-    # `energy:::.edist` returns `2*S1 - S2 - S3`. So dividing by 2 gives `S1 - S2/2 - S3/2`.
-    # This seems correct.
     return result
 
 
