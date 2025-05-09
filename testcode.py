@@ -59,15 +59,6 @@ py_ratio_seq = list(ratio_seq_nc)
 py_trace_val = list(trace_nc)
 py_jitter_factor = [0.0] * n_vars 
 
-# --- Correct ratio flag for 'huss' ---
-try:
-    huss_idx_py = variable_names.index('huss')
-    if py_ratio_seq[huss_idx_py]: # If it's currently True
-        print(f"Correcting py_ratio_seq for 'huss' (index {huss_idx_py}) from True to False.")
-        py_ratio_seq[huss_idx_py] = False
-except ValueError:
-    print("Warning: 'huss' not found in variable_names. Cannot correct its ratio flag.")
-
 # --- Univariate Quantile Mapping ---
 # qdm_c will have time_c_len rows
 # qdm_p will have time_p_len rows
