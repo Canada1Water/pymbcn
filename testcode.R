@@ -1,5 +1,8 @@
 ## Not run:
 library("MBC")
+# Source the local, modified version of MBC-QDM.R to use functions with diagnostics
+source("MBC-QDM.R") 
+
 # Load necessary data
 #data("cccma.RData")
 load("cccma.RData") 
@@ -104,4 +107,3 @@ cat('ESS (MBCp):', 1 - escore.mbcp / escore.qdm, '\n')
 cat('ESS (MBCr):', 1 - escore.mbcr / escore.qdm, '\n')
 cat('ESS (MBCn):', 1 - escore.mbcn / escore.qdm, '\n')
 ## End(Not run)
-
