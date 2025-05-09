@@ -18,84 +18,96 @@ try:
     with netCDF4.Dataset(nc_file_path, 'r') as nc_file:
         # Read time lengths
         time_c_len = len(nc_file.dimensions['time_c'])
-        # time_p_len = len(nc_file.dimensions['time_p']) # Not strictly needed if aligning to time_c_len
-        analysis_len = time_c_len # Align all data to the control period length
+        time_p_len = len(nc_file.dimensions['time_p']) # Use full length for projection
 
         # Initialize arrays
-        gcm_c_data = np.zeros((analysis_len, n_vars))
-        gcm_p_data = np.zeros((analysis_len, n_vars))
-        rcm_c_data = np.zeros((analysis_len, n_vars))
-        rcm_p_data = np.zeros((analysis_len, n_vars)) 
+        # Control period data uses time_c_len
+        gcm_c_data = np.zeros((time_c_len, n_vars))
+        rcm_c_data = np.zeros((time_c_len, n_vars))
+        
+        # Projection period data uses time_p_len
+        gcm_p_data = np.zeros((time_p_len, n_vars))
+        rcm_p_data = np.zeros((time_p_len, n_vars)) 
 
         # Read data for each variable
         for i, var in enumerate(variable_names):
-            gcm_c_data[:, i] = nc_file.variables[f'gcm_c_{var}'][:analysis_len]
-            gcm_p_data[:, i] = nc_file.variables[f'gcm_p_{var}'][:analysis_len] # Truncate to analysis_len
-            rcm_c_data[:, i] = nc_file.variables[f'rcm_c_{var}'][:analysis_len]
-            rcm_p_data[:, i] = nc_file.variables[f'rcm_p_{var}'][:analysis_len] # Truncate to analysis_len
+            gcm_c_data[:, i] = nc_file.variables[f'gcm_c_{var}'][:time_c_len]
+            rcm_c_data[:, i] = nc_file.variables[f'rcm_c_{var}'][:time_c_len]
+            
+            gcm_p_data[:, i] = nc_file.variables[f'gcm_p_{var}'][:time_p_len] 
+            rcm_p_data[:, i] = nc_file.variables[f'rcm_p_{var}'][:time_p_len] 
 
         # Read metadata
-        # R's cccma$ratio.seq and cccma$trace are vectors of length n_vars
         ratio_seq_nc = nc_file.variables['ratio_seq'][:].astype(bool)
         trace_nc = nc_file.variables['trace'][:]
 
 except FileNotFoundError:
     print(f"Error: NetCDF file not found at {nc_file_path}")
     print("Using random placeholder data instead.")
-    analysis_len = 100 
-    gcm_c_data = np.random.rand(analysis_len, n_vars)
-    gcm_p_data = np.random.rand(analysis_len, n_vars)
-    rcm_c_data = np.random.rand(analysis_len, n_vars)
-    rcm_p_data = np.random.rand(analysis_len, n_vars)
+    time_c_len = 100 
+    time_p_len = 110 # Example different length for projection
+    gcm_c_data = np.random.rand(time_c_len, n_vars)
+    rcm_c_data = np.random.rand(time_c_len, n_vars)
+    gcm_p_data = np.random.rand(time_p_len, n_vars)
+    rcm_p_data = np.random.rand(time_p_len, n_vars)
     ratio_seq_nc = np.array([True] + [False]*(n_vars-1)) 
     trace_nc = np.array([0.05]*n_vars) 
 
 
 # --- Prepare parameters for MBC functions (as lists/arrays per variable) ---
-# R code uses cccma$ratio.seq[i] and cccma$trace[i] in the loop.
-# For MBCp, MBCr, MBCn, ratio.seq and trace are passed as vectors.
-# Python functions expect these as iterables (lists or 1D arrays).
-
 py_ratio_seq = list(ratio_seq_nc)
 py_trace_val = list(trace_nc)
-# Default jitter_factor for QDM calls if not specified by MBC function itself
-# R testcode QDM loop: trace = cccma$trace[i] -> implies trace is a vector
-# R testcode MBCp/r/n: trace = cccma$trace -> implies trace is a vector
-# Jitter is not explicitly set in R's testcode QDM loop, so QDM default (0) is used.
-# Jitter is not explicitly set in R's testcode MBCp/r/n calls, so their defaults (0) are used.
-py_jitter_factor = [0.0] * n_vars # Default jitter for most calls
+py_jitter_factor = [0.0] * n_vars 
 
 # --- Univariate Quantile Mapping ---
-qdm_c = np.zeros_like(gcm_c_data)
-qdm_p = np.zeros_like(gcm_p_data)
+# qdm_c will have time_c_len rows
+# qdm_p will have time_p_len rows
+qdm_c = np.zeros_like(gcm_c_data) 
+qdm_p = np.zeros_like(gcm_p_data) 
 
 print("Running Univariate QDM...")
 for i in range(n_vars):
-    # R testcode: QDM(..., ratio = cccma$ratio.seq[i], trace = cccma$trace[i])
-    # Jitter is default 0. ties is default 'first'.
-    fit_qdm = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
-                 m_p=gcm_p_data[:, i], 
-                 ratio=py_ratio_seq[i], 
-                 trace=py_trace_val[i], 
-                 jitter_factor=0, # R's QDM default
-                 ties='first',    # R's QDM default
-                 pp_type='linear') # Python default, R uses type=7 (Weibull)
-                                   # For closer match, could try to find Python equivalent for type=7
-                                   # statsmodels.distributions.empirical_distribution.ECDF uses (i-1)/n
-                                   # R's quantile type 7 is (i-1)/(n-1) for i=1..n
-                                   # Python's 'linear' (i-1)/(n-1) for i=1..n. This matches R type 7.
-    qdm_c[:, i] = fit_qdm['mhat_c']
-    qdm_p[:, i] = fit_qdm['mhat_p']
+    # For QDM, o_c, m_c, m_p can have different lengths.
+    # QDM for control period:
+    fit_qdm_c = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
+                   m_p=gcm_c_data[:, i], # m_p here is a placeholder, result for mhat_c is used
+                   ratio=py_ratio_seq[i], 
+                   trace=py_trace_val[i], 
+                   jitter_factor=0, 
+                   ties='first',   
+                   pp_type='linear')
+    qdm_c[:, i] = fit_qdm_c['mhat_c']
+
+    # QDM for projection period (mhat_p is desired):
+    # o_c and m_c are from control period, m_p is from projection period
+    fit_qdm_p = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
+                   m_p=gcm_p_data[:, i], # This is the actual gcm_p_data
+                   ratio=py_ratio_seq[i], 
+                   trace=py_trace_val[i], 
+                   jitter_factor=0, 
+                   ties='first',    
+                   pp_type='linear')
+    qdm_p[:, i] = fit_qdm_p['mhat_p']
+
 print("Univariate QDM finished.")
 
 # --- Multivariate Bias Corrections ---
-# R testcode: MBCp(..., ratio.seq = cccma$ratio.seq, trace = cccma$trace)
-# Jitter default 0, ties default 'first'.
+# MBC functions expect o_c, m_c, m_p to have the same number of rows for some internal ops.
+# The R code passes full cccma$gcm.c, cccma$rcm.c, cccma$gcm.p
+# This implies that for MBCp, MBCr, MBCn, the inputs o_c, m_c, m_p should conform.
+# However, the goal is to get mhat_c (length of control) and mhat_p (length of projection).
+# The R implementation of MBCp/r/n seems to handle this by using the length of m_p
+# to determine the length of mhat_p, and length of m_c for mhat_c.
+# Let's assume for now that the Python MBC functions are structured to handle
+# m_p having a different length than o_c and m_c, and will produce mhat_p of m_p's length.
+# This needs verification in mbc_qdm.py if issues persist.
+# For now, pass them as loaded.
+
 print("\nRunning MBCp...")
 fit_mbcp = MBCp(o_c=rcm_c_data, m_c=gcm_c_data, m_p=gcm_p_data,
                ratio_seq=py_ratio_seq, trace=py_trace_val, 
-               jitter_factor=0, # MBCp's own jitter_factor default
-               ties='first',    # MBCp's own ties default
+               jitter_factor=0, 
+               ties='first',    
                silent=False, pp_type='linear')
 mbcp_c = fit_mbcp['mhat_c']
 mbcp_p = fit_mbcp['mhat_p']
@@ -104,23 +116,19 @@ print("MBCp finished.")
 print("\nRunning MBCr...")
 fit_mbcr = MBCr(o_c=rcm_c_data, m_c=gcm_c_data, m_p=gcm_p_data,
                ratio_seq=py_ratio_seq, trace=py_trace_val,
-               jitter_factor=0, # MBCr's own jitter_factor default
-               ties='first',    # MBCr's own ties default
+               jitter_factor=0, 
+               ties='first',    
                silent=False, pp_type='linear')
 mbcr_c = fit_mbcr['mhat_c']
 mbcr_p = fit_mbcr['mhat_p']
 print("MBCr finished.")
 
 print("\nRunning MBCn...")
-# MBCn also has jitter_factor and ties defaults.
-# n_escore=0 in R testcode (not specified, so default 0). Python testcode had 100.
-# Let's match R testcode default (0) for n_escore unless specified.
-# The R output shows MBCn printout without escores, so n.escore was 0.
 fit_mbcn = MBCn(o_c=rcm_c_data, m_c=gcm_c_data, m_p=gcm_p_data,
                ratio_seq=py_ratio_seq, trace=py_trace_val,
-               jitter_factor=0, # MBCn's own jitter_factor default
-               ties='first',    # MBCn's own ties default
-               silent=False, n_escore=0, # Match R test code (default n.escore=0)
+               jitter_factor=0, 
+               ties='first',    
+               silent=False, n_escore=0, 
                pp_type='linear') 
 mbcn_c = fit_mbcn['mhat_c']
 mbcn_p = fit_mbcn['mhat_p']

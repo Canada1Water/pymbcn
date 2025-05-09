@@ -430,7 +430,9 @@ def MRS(o_c, m_c, m_p, o_c_chol=None, o_p_chol=None, m_c_chol=None, m_p_chol=Non
     # Bias correction factors: R's solve(A) %*% B is A_inv @ B
     # Python's solve(A, B) solves Ax = B for x. So x = A_inv @ B.
     # This matches R's solve(m.c.chol) %*% o.c.chol
-    mbcfactor = solve(m_c_chol.T, o_c_chol.T).T 
+    # R: mbcfactor <- solve(m.c.chol) %*% o.c.chol  (U_mc^-1 @ U_oc)
+    # Python: mbcfactor = solve(m_c_chol, o_c_chol) (U_mc^-1 @ U_oc)
+    mbcfactor = solve(m_c_chol, o_c_chol) 
     mbpfactor = solve(m_p_chol, o_p_chol)
 
     if MRS_DEBUG_PRINT_PY:
