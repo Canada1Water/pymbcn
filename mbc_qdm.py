@@ -48,6 +48,7 @@ from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import cdist
 from scipy.linalg import solve # Explicit import
 from scipy.stats import rankdata
+import pandas as pd # Import pandas for describe() in diagnostics
 
 # --- Global flag for MRS diagnostics ---
 MRS_DEBUG_PRINT_PY = False
