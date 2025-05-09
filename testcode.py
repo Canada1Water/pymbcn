@@ -138,6 +138,7 @@ for i in range(n_vars):
                                            pp_type='linear',
                                            debug_name=current_debug_name_py)
                     qdm_p[:, i] = fit_qdm_p_adjusted['mhat_p']
+                    py_trace_val[i] = adjusted_trace_for_p # Update the list for subsequent MBC calls
             except Exception as e:
                 print(f"PY UNIQDM LOOP - Var: {variable_names[i]}, Error calculating correlation or re-running QDM: {e}")
         else:
