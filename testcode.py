@@ -133,8 +133,32 @@ if huss_col_idx_for_hist != -1:
     plt.savefig("huss_gcm_p_vs_qdm_p_histograms.png")
     plt.close()
     print("Huss GCM_P vs QDM_P histograms saved to huss_gcm_p_vs_qdm_p_histograms.png")
+
+    # --- Huss Time Series Plots (Original GCM_P vs QDM_P) ---
+    plt.figure(figsize=(12, 8))
+    time_axis_p = np.arange(gcm_p_data.shape[0]) # Simple time index for projection period
+
+    plt.subplot(2, 1, 1)
+    plt.plot(time_axis_p, gcm_p_data[:, huss_col_idx_for_hist], color='blue', alpha=0.7, linewidth=0.8)
+    plt.title('Time Series of Original GCM Projection Data for Huss')
+    plt.xlabel('Time Index')
+    plt.ylabel('Huss Value')
+    plt.grid(True)
+
+    plt.subplot(2, 1, 2)
+    plt.plot(time_axis_p, qdm_p[:, huss_col_idx_for_hist], color='green', alpha=0.7, linewidth=0.8)
+    plt.title('Time Series of QDM Processed Data for Huss (Projection Period)')
+    plt.xlabel('Time Index')
+    plt.ylabel('Huss Value')
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.savefig("huss_gcm_p_vs_qdm_p_timeseries.png")
+    plt.close()
+    print("Huss GCM_P vs QDM_P time series plots saved to huss_gcm_p_vs_qdm_p_timeseries.png")
+
 else:
-    print("Huss variable not found for histogram plotting.")
+    print("Huss variable not found for histogram and time series plotting.")
 
 
 # --- Multivariate Bias Corrections ---

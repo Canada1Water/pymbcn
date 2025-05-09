@@ -41,8 +41,28 @@ if ("huss" %in% colnames(cccma$gcm.p)) {
   
   dev.off()
   cat("Huss GCM_P vs QDM_P R histograms saved to huss_gcm_p_vs_qdm_p_histograms_r.png\n")
+
+  # Huss Time Series Plots (Original GCM_P vs QDM_P)
+  png("huss_gcm_p_vs_qdm_p_timeseries_r.png", width=1000, height=800)
+  par(mfrow = c(2, 1), mar = c(4, 4, 2, 1)) # Adjust margins for titles
+
+  time_axis_p_r <- seq_len(nrow(cccma$gcm.p))
+
+  plot(time_axis_p_r, cccma$gcm.p[, huss_idx_r], type = 'l', col = "blue",
+       main = "Time Series of Original GCM Projection Data for Huss", 
+       xlab = "Time Index", ylab = "Huss Value")
+  grid()
+  
+  plot(time_axis_p_r, qdm.p[, huss_idx_r], type = 'l', col = "green", 
+       main = "Time Series of QDM Processed Data for Huss (Projection)", 
+       xlab = "Time Index", ylab = "Huss Value")
+  grid()
+  
+  dev.off()
+  cat("Huss GCM_P vs QDM_P R time series plots saved to huss_gcm_p_vs_qdm_p_timeseries_r.png\n")
+  
 } else {
-  cat("Huss variable not found for R histogram plotting.\n")
+  cat("Huss variable not found for R histogram and time series plotting.\n")
 }
 
 # Multivariate MBCp bias correction
