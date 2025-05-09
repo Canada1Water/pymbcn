@@ -110,6 +110,22 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
     mhat.c <- approx(quant.m.c, quant.o.c, m.c, rule=2,
                      ties='ordered')$y
 
+    # Debug for mhat.c path if huss_qdm_debug is active
+    if(!is.null(debug_name) && debug_name == "huss_qdm_debug" && !ratio){ # huss is not ratio
+        cat("--- QDM DEBUG R (huss_qdm_debug, mhat.c path, ratio=F) ---\n")
+        cat("Input o.c (original to QDM call) [1:5]:\n"); print(head(formals(QDM)$o.c, 5)) # This shows default, not actual. Need to capture actual.
+                                                                                      # The o.c, m.c printed below are after jitter.
+        cat("Input o.c (after jitter/runif if any) [1:5]:\n"); print(head(o.c, 5))
+        cat("Input m.c (after jitter/runif if any) [1:5]:\n"); print(head(m.c, 5))
+        cat("quant.o.c[1:5]:\n"); print(head(quant.o.c, 5))
+        cat("quant.m.c[1:5]:\n"); print(head(quant.m.c, 5))
+        cat("mhat.c[1:5] (final for this call):\n"); print(head(mhat.c, 5))
+        if (all(abs(mhat.c) < 1e-9)) { # Check if all values are effectively zero
+             cat("WARNING: All mhat.c values for huss are close to zero in R QDM.\n")
+        }
+        cat("Summary of mhat.c for huss in R QDM:\n"); print(summary(mhat.c));
+    }
+
     if(!is.null(debug_name) && debug_name == "pr_initial_qdm_mp_debug" && ratio && length(mhat.p) > 0){
         cat("--- QDM DEBUG R (pr_initial_qdm_mp_debug, ratio=T) ---\n")
         cat("Original m.p[1]:", m.p.original.first.val.for.debug, "\n")
