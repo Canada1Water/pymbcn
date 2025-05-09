@@ -302,6 +302,25 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
         print("delta_m[:5]:\n", delta_m[:5])
         print("mhat_p[:5] (final for non-ratio):\n", mhat_p[:5])
 
+    # ADD NEW DEBUG BLOCK FOR HUSS MHAT_C
+    if debug_name == "huss_qdm_mhat_c_debug" and not ratio: # huss is not ratio
+        print("--- QDM DEBUG PY (huss_qdm_mhat_c_debug, ratio=F) ---")
+        # Print original o_c and m_c passed to the function for this specific call
+        # These are o_c=rcm_c_data[:, i] and m_c=gcm_c_data[:, i] from testcode.py
+        # The QDM function copies them to o_c_arr, m_c_arr then potentially jitters.
+        # To see the exact inputs to quantile calculation, print o_c_arr, m_c_arr.
+        print("Input o_c_arr (after jitter, if any)[:5]:\n", o_c_arr[:5])
+        print("Input m_c_arr (after jitter, if any)[:5]:\n", m_c_arr[:5])
+        print("quant_o_c[:5]:\n", quant_o_c[:5])
+        print("quant_m_c[:5]:\n", quant_m_c[:5])
+        print("mhat_c[:5] (final for this call):\n", mhat_c[:5])
+        # Check if all mhat_c are zero
+        if np.all(np.isclose(mhat_c, 0)):
+            print("WARNING: All mhat_c values for huss are close to zero.")
+        elif np.any(np.isclose(mhat_c, 0)):
+            print("INFO: Some mhat_c values for huss are close to zero.")
+        print(f"Summary of mhat_c for huss: min={np.min(mhat_c):.4e}, max={np.max(mhat_c):.4e}, mean={np.mean(mhat_c):.4e}")
+
     # Handle ratio data output
     if ratio:
         mhat_c[mhat_c < trace] = 0

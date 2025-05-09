@@ -81,14 +81,19 @@ for i in range(n_vars):
         current_debug_name_py = "huss_qdm_debug"
 
     # QDM for control period:
+    # Need a debug name for huss's mhat_c
+    debug_name_for_mhat_c = None
+    if variable_names[i] == "huss":
+        debug_name_for_mhat_c = "huss_qdm_mhat_c_debug"
+
     fit_qdm_c = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
-                   m_p=gcm_c_data[:, i], 
+                   m_p=gcm_c_data[:, i],  # m_p is gcm_c_data for control period correction
                    ratio=py_ratio_seq[i], 
                    trace=py_trace_val[i], 
                    jitter_factor=0, 
                    ties='first',   
                    pp_type='linear',
-                   debug_name=None) # No debug for control period QDM of m_p
+                   debug_name=debug_name_for_mhat_c) # Pass the new debug name
     qdm_c[:, i] = fit_qdm_c['mhat_c']
 
     # QDM for projection period (mhat_p is desired):
@@ -313,7 +318,7 @@ plot_r_style_correlations(rcm_c_data, rcm_p_data, qdm_c, qdm_p, mbcn_c, mbcn_p, 
 # Pairwise scatterplots (R colors: #0000001A, #FF00001A, #0000FF1A, #FFA5001A)
 plot_pairs(gcm_c_data, 'CanESM2 calibration', variable_names, color_hex='#0000003A') # Darker alpha for visibility
 plot_pairs(rcm_c_data, 'CanRCM4 calibration', variable_names, color_hex='#0000003A')
-plot_pairs(qdm_c,      'QDM calibration',     variable_names, color_hex='#0000003A')
+plot_pairs(qdm_c,      'QDM calibration',     variable_names, color_hex='#0000003A', diagonal='hist') # Changed diagonal to hist
 plot_pairs(mbcp_c,     'MBCp calibration',    variable_names, color_hex='#FF00003A', diagonal='hist') # MBCp often results in spiky KDEs
 plot_pairs(mbcr_c,     'MBCr calibration',    variable_names, color_hex='#0000FF3A', diagonal='hist') # MBCr uses ranks, hist is better
 plot_pairs(mbcn_c,     'MBCn calibration',    variable_names, color_hex='#FFA5003A', diagonal='hist') # MBCn can also be spiky
