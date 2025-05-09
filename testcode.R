@@ -65,6 +65,42 @@ if ("huss" %in% colnames(cccma$gcm.p)) {
   cat("Huss variable not found for R histogram and time series plotting.\n")
 }
 
+# Tas Histograms and Time Series Plots (Original GCM_P vs QDM_P)
+if ("tas" %in% colnames(cccma$gcm.p)) {
+  tas_idx_r <- which(colnames(cccma$gcm.p) == "tas")
+  
+  # --- Tas Histograms ---
+  png("tas_gcm_p_vs_qdm_p_histograms_r.png", width=1000, height=500)
+  par(mfrow = c(1, 2))
+  hist(cccma$gcm.p[, tas_idx_r], breaks = 30, col = "blue", 
+       main = "Histogram of Original GCM Projection Data for Tas", xlab = "Tas Value")
+  hist(qdm.p[, tas_idx_r], breaks = 30, col = "green", 
+       main = "Histogram of QDM Processed Data for Tas (Projection)", xlab = "Tas Value")
+  dev.off()
+  cat("Tas GCM_P vs QDM_P R histograms saved to tas_gcm_p_vs_qdm_p_histograms_r.png\n")
+
+  # --- Tas Time Series Plots ---
+  png("tas_gcm_p_vs_qdm_p_timeseries_r.png", width=1000, height=800)
+  par(mfrow = c(2, 1), mar = c(4, 4, 2, 1)) 
+  time_axis_p_r_tas <- seq_len(nrow(cccma$gcm.p))
+
+  plot(time_axis_p_r_tas, cccma$gcm.p[, tas_idx_r], type = 'l', col = "blue",
+       main = "Time Series of Original GCM Projection Data for Tas", 
+       xlab = "Time Index", ylab = "Tas Value")
+  grid()
+  
+  plot(time_axis_p_r_tas, qdm.p[, tas_idx_r], type = 'l', col = "green", 
+       main = "Time Series of QDM Processed Data for Tas (Projection)", 
+       xlab = "Time Index", ylab = "Tas Value")
+  grid()
+  dev.off()
+  cat("Tas GCM_P vs QDM_P R time series plots saved to tas_gcm_p_vs_qdm_p_timeseries_r.png\n")
+  
+} else {
+  cat("Tas variable not found for R histogram and time series plotting.\n")
+}
+
+
 # Multivariate MBCp bias correction
 fit.mbcp <- MBCp(o.c = cccma$rcm.c, m.c = cccma$gcm.c, m.p = cccma$gcm.p, 
                   ratio.seq = cccma$ratio.seq, trace = cccma$trace)

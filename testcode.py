@@ -160,6 +160,52 @@ if huss_col_idx_for_hist != -1:
 else:
     print("Huss variable not found for histogram and time series plotting.")
 
+# --- Tas Histograms and Time Series Plots (Original GCM_P vs QDM_P) ---
+tas_col_idx_for_plots = variable_names.index('tas') if 'tas' in variable_names else -1
+if tas_col_idx_for_plots != -1:
+    # --- Tas Histograms ---
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.hist(gcm_p_data[:, tas_col_idx_for_plots], bins=30, color='blue', alpha=0.7)
+    plt.title('Histogram of Original GCM Projection Data for Tas')
+    plt.xlabel('Tas Value')
+    plt.ylabel('Frequency')
+
+    plt.subplot(1, 2, 2)
+    plt.hist(qdm_p[:, tas_col_idx_for_plots], bins=30, color='green', alpha=0.7)
+    plt.title('Histogram of QDM Processed Data for Tas (Projection Period)')
+    plt.xlabel('Tas Value')
+    plt.ylabel('Frequency')
+    plt.tight_layout()
+    plt.savefig("tas_gcm_p_vs_qdm_p_histograms.png")
+    plt.close()
+    print("Tas GCM_P vs QDM_P histograms saved to tas_gcm_p_vs_qdm_p_histograms.png")
+
+    # --- Tas Time Series Plots ---
+    plt.figure(figsize=(12, 8))
+    time_axis_p_tas = np.arange(gcm_p_data.shape[0]) # Simple time index for projection period
+
+    plt.subplot(2, 1, 1)
+    plt.plot(time_axis_p_tas, gcm_p_data[:, tas_col_idx_for_plots], color='blue', alpha=0.7, linewidth=0.8)
+    plt.title('Time Series of Original GCM Projection Data for Tas')
+    plt.xlabel('Time Index')
+    plt.ylabel('Tas Value')
+    plt.grid(True)
+
+    plt.subplot(2, 1, 2)
+    plt.plot(time_axis_p_tas, qdm_p[:, tas_col_idx_for_plots], color='green', alpha=0.7, linewidth=0.8)
+    plt.title('Time Series of QDM Processed Data for Tas (Projection Period)')
+    plt.xlabel('Time Index')
+    plt.ylabel('Tas Value')
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.savefig("tas_gcm_p_vs_qdm_p_timeseries.png")
+    plt.close()
+    print("Tas GCM_P vs QDM_P time series plots saved to tas_gcm_p_vs_qdm_p_timeseries.png")
+else:
+    print("Tas variable not found for histogram and time series plotting.")
+
 
 # --- Multivariate Bias Corrections ---
 print("\nRunning MBCp...")
