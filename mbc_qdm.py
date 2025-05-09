@@ -50,9 +50,6 @@ from scipy.linalg import solve # Explicit import
 from scipy.stats import rankdata
 import pandas as pd # Import pandas for describe() in diagnostics
 
-# --- Global flag for MRS diagnostics ---
-MRS_DEBUG_PRINT_PY = False
-
 # Helper function for nearPD
 def _ensure_symmetric(A):
     return (A + A.T) / 2
@@ -404,7 +401,6 @@ def escore(x, y, scale_x=False, n_cases=None, alpha=1, method="cluster"):
 
 def MRS(o_c, m_c, m_p, o_c_chol=None, o_p_chol=None, m_c_chol=None, m_p_chol=None):
     """Multivariate rescaling based on Cholesky decomposition"""
-    global MRS_DEBUG_PRINT_PY # Allow modification of global
     o_c_arr = np.asarray(o_c)
     m_c_arr = np.asarray(m_c)
     m_p_arr = np.asarray(m_p)
@@ -436,12 +432,6 @@ def MRS(o_c, m_c, m_p, o_c_chol=None, o_p_chol=None, m_c_chol=None, m_p_chol=Non
     # Python: mbcfactor = solve(m_c_chol, o_c_chol) (U_mc^-1 @ U_oc)
     mbcfactor = solve(m_c_chol, o_c_chol) 
     mbpfactor = solve(m_p_chol, o_p_chol)
-
-    if MRS_DEBUG_PRINT_PY:
-        print("--- MRS DEBUG (Python) ---")
-        print("mbcfactor (head):\n", mbcfactor[:min(3, mbcfactor.shape[0]), :min(3, mbcfactor.shape[1])])
-        print("mbpfactor (head):\n", mbpfactor[:min(3, mbpfactor.shape[0]), :min(3, mbpfactor.shape[1])])
-        print("--- END MRS DEBUG (Python) ---")
     
     # Multivariate bias correction
     mbc_c = m_c_cent @ mbcfactor
@@ -483,9 +473,6 @@ def MBCr(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
          ratio_max_trace=10*0.05, ties='first', qmap_precalc=False, # ties for initial rank and loop rank
          silent=False, subsample=None, pp_type='linear'):
     """Multivariate quantile mapping bias correction (Spearman correlation)"""
-    global MRS_DEBUG_PRINT_PY # Allow modification of global
-    MBCR_ITER_DEBUG_PY = True # Set to TRUE for Python debug prints in MBCr
-
     n_vars = o_c.shape[1]
     o_c_arr = np.asarray(o_c)
     m_c_arr = np.asarray(m_c)
@@ -542,20 +529,6 @@ def MBCr(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
     cor_i = np.corrcoef(m_c_r, rowvar=False, ddof=1) # Spearman uses ranks, then Pearson on ranks. ddof=1 for sample cov.
     cor_i[np.isnan(cor_i)] = 0 
     
-    if MBCR_ITER_DEBUG_PY:
-        print("--- MBCr DEBUG PY: Before Loop ---")
-        print("Summary o_c_r (head):\n", pd.DataFrame(o_c_r[:,:min(3,o_c_r.shape[1])]).describe())
-        print(o_c_r[:2,:min(3,o_c_r.shape[1])])
-        print("Summary m_c_r (initial, head):\n", pd.DataFrame(m_c_r[:,:min(3,m_c_r.shape[1])]).describe())
-        print(m_c_r[:2,:min(3,m_c_r.shape[1])])
-        print("Summary m_p_r (initial, head):\n", pd.DataFrame(m_p_r[:,:min(3,m_p_r.shape[1])]).describe())
-        print(m_p_r[:2,:min(3,m_p_r.shape[1])])
-        
-        cov_o_c_r_raw = np.cov(o_c_r, rowvar=False, ddof=1)
-        print("cov(o_c_r) (raw) head:\n", cov_o_c_r_raw[:min(3,cov_o_c_r_raw.shape[0]), :min(3,cov_o_c_r_raw.shape[1])])
-        npd_o_c_r_mat = nearPD(cov_o_c_r_raw)
-        print("nearPD(cov(o_c_r)) head:\n", npd_o_c_r_mat[:min(3,npd_o_c_r_mat.shape[0]), :min(3,npd_o_c_r_mat.shape[1])])
-
     # Iterative MBC/reranking
     # R's chol is upper by default. Pass lower=False to np.linalg.cholesky
     # ddof=1 for sample covariance matrix, as R's cov() default.
@@ -563,44 +536,16 @@ def MBCr(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
     o_c_chol = cholesky(o_c_cov_r, lower=False) 
     o_p_chol = o_c_chol 
     
-    if MBCR_ITER_DEBUG_PY:
-        print("o_c_chol head:\n", o_c_chol[:min(3,o_c_chol.shape[0]), :min(3,o_c_chol.shape[1])])
-
     for k_iter_loop in range(iter): 
-        if MBCR_ITER_DEBUG_PY and k_iter_loop == 0:
-            print(f"--- MBCr DEBUG PY: Iteration {k_iter_loop+1} ---")
-            print("Summary m_c_r (start of iter, head):\n", pd.DataFrame(m_c_r[:,:min(3,m_c_r.shape[1])]).describe())
-            print(m_c_r[:2,:min(3,m_c_r.shape[1])])
-            
-            cov_m_c_r_raw = np.cov(m_c_r, rowvar=False, ddof=1)
-            print("cov(m_c_r) (raw) head:\n", cov_m_c_r_raw[:min(3,cov_m_c_r_raw.shape[0]), :min(3,cov_m_c_r_raw.shape[1])])
-            npd_m_c_r_mat = nearPD(cov_m_c_r_raw)
-            print("nearPD(cov(m_c_r)) head:\n", npd_m_c_r_mat[:min(3,npd_m_c_r_mat.shape[0]), :min(3,npd_m_c_r_mat.shape[1])])
-
         m_c_cov_r = nearPD(np.cov(m_c_r, rowvar=False, ddof=1))
         m_c_chol = cholesky(m_c_cov_r, lower=False)
         m_p_chol = m_c_chol 
 
-        if MBCR_ITER_DEBUG_PY and k_iter_loop == 0:
-            print("m_c_chol head:\n", m_c_chol[:min(3,m_c_chol.shape[0]), :min(3,m_c_chol.shape[1])])
-            MRS_DEBUG_PRINT_PY = True # Enable MRS debug prints
-
         fit_mbc = MRS(o_c_r, m_c_r, m_p_r, o_c_chol=o_c_chol,
                      o_p_chol=o_p_chol, m_c_chol=m_c_chol, m_p_chol=m_p_chol)
         
-        if MBCR_ITER_DEBUG_PY and k_iter_loop == 0:
-            MRS_DEBUG_PRINT_PY = False # Disable MRS debug prints
-            print("Summary fit_mbc['mhat_c'] (after MRS, head):\n", pd.DataFrame(fit_mbc['mhat_c'][:,:min(3,fit_mbc['mhat_c'].shape[1])]).describe())
-            print(fit_mbc['mhat_c'][:2,:min(3,fit_mbc['mhat_c'].shape[1])])
-
-
         m_c_r = np.apply_along_axis(rankdata, 0, fit_mbc['mhat_c'], method=rank_method_loop)
         m_p_r = np.apply_along_axis(rankdata, 0, fit_mbc['mhat_p'], method=rank_method_loop)
-
-        if MBCR_ITER_DEBUG_PY and k_iter_loop == 0:
-            print("Summary m_c_r (after re-ranking, head):\n", pd.DataFrame(m_c_r[:,:min(3,m_c_r.shape[1])]).describe())
-            print(m_c_r[:2,:min(3,m_c_r.shape[1])])
-
 
         cor_j = np.corrcoef(m_c_r, rowvar=False, ddof=1)
         cor_j[np.isnan(cor_j)] = 0
@@ -610,9 +555,6 @@ def MBCr(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
         if not silent:
             # R prints 1-based iteration, mean equality of ranks, cor_diff
             print(f"{k_iter_loop+1} {np.mean(m_c_r == m_c_i_rank_check):.6f} {cor_diff:.6g} ", end='')
-        
-        if MBCR_ITER_DEBUG_PY and k_iter_loop == 0:
-            print(f"\ncor_diff for iter 1: {cor_diff}\n")
             
         if cor_diff < cor_thresh:
             break
@@ -650,9 +592,6 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
          ratio_max_trace=10*0.05, ties='first', qmap_precalc=False, 
          silent=False, subsample=None, pp_type='linear'):
     """Multivariate quantile mapping bias correction (Pearson correlation)"""
-    global MRS_DEBUG_PRINT_PY # Allow modification of global
-    MBCP_ITER_DEBUG_PY = True # Set to TRUE for Python debug prints in MBCp
-
     n_vars = o_c.shape[1]
     o_c_arr = np.asarray(o_c)
     m_c_arr = np.asarray(m_c)
@@ -684,14 +623,14 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
     m_p_after_initial_qdm = np.empty_like(m_p_arr)
 
     if not qmap_precalc:
-        if MBCP_ITER_DEBUG_PY: print("--- MBCp DEBUG PY: Initial QDM ---")
         for i in range(n_vars):
             current_debug_name_py = None
-            if MBCP_ITER_DEBUG_PY and ratio_seq_list[i] and i == np.where(ratio_seq_list)[0][0] if np.any(ratio_seq_list) else False :
-                current_debug_name_py = "pr_initial_qdm_mp_debug" # Assuming pr is the first ratio var
-                print(f"Initial QDM for var {i} ({current_debug_name_py}) - o_c_arr head:\n", o_c_arr[:2,i])
-                print(f"Initial QDM for var {i} - m_c_qmap_initial_orig_mc head:\n", m_c_qmap_initial_orig_mc[:2,i])
-                print(f"Initial QDM for var {i} - m_p_qmap_initial_orig_mp head:\n", m_p_qmap_initial_orig_mp[:2,i])
+            # Check if this is the first ratio variable for QDM debugging
+            first_ratio_var_idx = -1
+            if np.any(ratio_seq_list):
+                first_ratio_var_idx = np.where(ratio_seq_list)[0][0]
+            if ratio_seq_list[i] and i == first_ratio_var_idx :
+                current_debug_name_py = "pr_initial_qdm_mp_debug"
             
             fit_qmap = QDM(o_c_arr[:,i], m_c_qmap_initial_orig_mc[:,i], m_p_qmap_initial_orig_mp[:,i], 
                           ratio=ratio_seq_list[i], trace_calc=trace_calc_list[i],
@@ -701,9 +640,6 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
                           subsample=subsample, pp_type=pp_type, ties=ties, debug_name=current_debug_name_py)
             m_c_after_initial_qdm[:,i] = fit_qmap['mhat_c']
             m_p_after_initial_qdm[:,i] = fit_qmap['mhat_p']
-            if MBCP_ITER_DEBUG_PY and current_debug_name_py is not None:
-                print(f"Initial QDM for var {i} - m_c_after_initial_qdm head:\n", m_c_after_initial_qdm[:2,i])
-                print(f"Initial QDM for var {i} - m_p_after_initial_qdm head:\n", m_p_after_initial_qdm[:2,i])
     else: # If qmap_precalc is True, assume m_c_arr and m_p_arr are already QDM'd
         m_c_after_initial_qdm = m_c_arr.copy()
         m_p_after_initial_qdm = m_p_arr.copy()
@@ -712,11 +648,6 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
     m_c_iter = m_c_after_initial_qdm.copy()
     m_p_iter = m_p_after_initial_qdm.copy()
     
-    if MBCP_ITER_DEBUG_PY:
-        print("--- MBCp DEBUG PY: Before Loop ---")
-        print("Summary m_c_iter (after initial QDM, start of loop) head:\n", pd.DataFrame(m_c_iter[:,:min(3,m_c_iter.shape[1])]).describe())
-        print(m_c_iter[:2,:min(3,m_c_iter.shape[1])])
-
     cor_i = np.corrcoef(m_c_iter, rowvar=False, ddof=1) 
     cor_i[np.isnan(cor_i)] = 0
     
@@ -724,49 +655,20 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
     o_c_chol = cholesky(nearPD(o_c_cov_mat), lower=False)
     o_p_chol = o_c_chol # Default in R
     
-    if MBCP_ITER_DEBUG_PY:
-        print("cov(o_c_arr) head:\n", o_c_cov_mat[:min(3,o_c_cov_mat.shape[0]), :min(3,o_c_cov_mat.shape[1])])
-        print("o_c_chol head:\n", o_c_chol[:min(3,o_c_chol.shape[0]), :min(3,o_c_chol.shape[1])])
-    
     for k_iter_loop in range(iter): 
-        if MBCP_ITER_DEBUG_PY and k_iter_loop == 0:
-            print(f"--- MBCp DEBUG PY: Iteration {k_iter_loop+1} ---")
-            print("Summary m_c_iter (start of iter) head:\n", pd.DataFrame(m_c_iter[:,:min(3,m_c_iter.shape[1])]).describe())
-            print(m_c_iter[:2,:min(3,m_c_iter.shape[1])])
-            
-            cov_m_c_iter_raw = np.cov(m_c_iter, rowvar=False, ddof=1)
-            print("cov(m_c_iter) (raw) head:\n", cov_m_c_iter_raw[:min(3,cov_m_c_iter_raw.shape[0]), :min(3,cov_m_c_iter_raw.shape[1])])
-            npd_m_c_iter_mat = nearPD(cov_m_c_iter_raw)
-            print("nearPD(cov(m_c_iter)) head:\n", npd_m_c_iter_mat[:min(3,npd_m_c_iter_mat.shape[0]), :min(3,npd_m_c_iter_mat.shape[1])])
-
         m_c_cov = nearPD(np.cov(m_c_iter, rowvar=False, ddof=1))
         m_c_chol = cholesky(m_c_cov, lower=False)
         m_p_chol = m_c_chol # Default in R
 
-        if MBCP_ITER_DEBUG_PY and k_iter_loop == 0:
-            print("m_c_chol head:\n", m_c_chol[:min(3,m_c_chol.shape[0]), :min(3,m_c_chol.shape[1])])
-            MRS_DEBUG_PRINT_PY = True
-
         # MRS uses o_c_arr (original obs), m_c_iter, m_p_iter
         fit_mbc = MRS(o_c_arr, m_c_iter, m_p_iter, o_c_chol=o_c_chol,
                      o_p_chol=o_p_chol, m_c_chol=m_c_chol, m_p_chol=m_p_chol)
-        
-        if MBCP_ITER_DEBUG_PY and k_iter_loop == 0:
-            MRS_DEBUG_PRINT_PY = False
-            print("Summary fit_mbc['mhat_c'] (after MRS) head:\n", pd.DataFrame(fit_mbc['mhat_c'][:,:min(3,fit_mbc['mhat_c'].shape[1])]).describe())
-            print(fit_mbc['mhat_c'][:2,:min(3,fit_mbc['mhat_c'].shape[1])])
         
         m_c_iter_after_mrs = fit_mbc['mhat_c']
         m_p_iter_after_mrs = fit_mbc['mhat_p']
         
         # Inner QDM loop
         for j in range(n_vars):
-            if MBCP_ITER_DEBUG_PY and k_iter_loop == 0 and j == 0:
-                print(f"--- MBCp DEBUG PY: Iter {k_iter_loop+1}, Inner QDM var {j} ---")
-                print("Inner QDM o_c_arr[:,j] head:\n", o_c_arr[:2,j])
-                print("Inner QDM m_c_iter_after_mrs[:,j] head:\n", m_c_iter_after_mrs[:2,j])
-                print("Inner QDM m_p_iter_after_mrs[:,j] head:\n", m_p_iter_after_mrs[:2,j])
-
             fit_qmap_inner = QDM(o_c_arr[:,j], m_c_iter_after_mrs[:,j], m_p_iter_after_mrs[:,j], 
                                 ratio=False, # R uses ratio=FALSE
                                 n_tau=n_tau, pp_type=pp_type, 
@@ -774,13 +676,6 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
                                 trace=trace_list[j], trace_calc=trace_calc_list[j], ties=ties) # Pass trace params
             m_c_iter[:,j] = fit_qmap_inner['mhat_c'] 
             m_p_iter[:,j] = fit_qmap_inner['mhat_p'] 
-            if MBCP_ITER_DEBUG_PY and k_iter_loop == 0 and j == 0:
-                print("Inner QDM m_c_iter[:,j] (updated) head:\n", m_c_iter[:2,j])
-                print("Inner QDM m_p_iter[:,j] (updated) head:\n", m_p_iter[:2,j])
-        
-        if MBCP_ITER_DEBUG_PY and k_iter_loop == 0:
-            print("Summary m_c_iter (after inner QDM loop) head:\n", pd.DataFrame(m_c_iter[:,:min(3,m_c_iter.shape[1])]).describe())
-            print(m_c_iter[:2,:min(3,m_c_iter.shape[1])])
             
         cor_j = np.corrcoef(m_c_iter, rowvar=False, ddof=1)
         cor_j[np.isnan(cor_j)] = 0
@@ -789,9 +684,6 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
             
         if not silent:
             print(f"{k_iter_loop+1} {cor_diff:.6g} ", end='') 
-        
-        if MBCP_ITER_DEBUG_PY and k_iter_loop == 0:
-            print(f"\ncor_diff for iter 1: {cor_diff}\n")
             
         if cor_diff < cor_thresh:
             break
