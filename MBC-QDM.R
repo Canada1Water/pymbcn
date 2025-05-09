@@ -207,9 +207,6 @@ function (x, y, scale.x = FALSE, n.cases = NULL, alpha = 1, method = "cluster")
 #  Matching Marginal Distributions and Inter-variable Dependence Structure.
 #  Journal of Climate, doi:10.1175/JCLI-D-15-0679.1
 
-# --- Global flag for MRS diagnostics ---
-.MRS_DEBUG_PRINT <- FALSE 
-
 MRS <-
 # Multivariate rescaling based on Cholesky decomposition of the covariance
 #  matrix
@@ -360,14 +357,10 @@ function(o.c, m.c, m.p, iter=20, cor.thresh=1e-4,
     m.p.qmap <- m.p # This will hold the QDM'd values for final shuffle
 
     if(!qmap.precalc){
-        if(MBCP_ITER_DEBUG_R) cat("--- MBCp DEBUG R: Initial QDM --- \n")
         for(i in seq(ncol(o.c))){
             current_debug_name <- NULL
-            if(MBCP_ITER_DEBUG_R && ratio.seq[i] && i == which(ratio.seq)[1]) { # Assuming pr is the first ratio var
+            if (ratio.seq[i] && i == which(ratio.seq)[1]) { # Assuming pr is the first ratio var
                 current_debug_name <- "pr_initial_qdm_mp_debug"
-                cat("Initial QDM for var ", i, " (", current_debug_name, ") - o.c head:\n"); print(head(o.c[,i],2));
-                cat("Initial QDM for var ", i, " - m.c (original) head:\n"); print(head(m.c.qmap.initial[,i],2));
-                cat("Initial QDM for var ", i, " - m.p (original) head:\n"); print(head(m.p.qmap.initial[,i],2));
             }
             fit.qmap <- QDM(o.c=o.c[,i], m.c=m.c.qmap.initial[,i], m.p=m.p.qmap.initial[,i], # Use original m.c, m.p
                             ratio=ratio.seq[i], trace.calc=trace.calc[i],
@@ -377,21 +370,12 @@ function(o.c, m.c, m.p, iter=20, cor.thresh=1e-4,
                             subsample=subsample, pp.type=pp.type, debug_name=current_debug_name)
             m.c.qmap[,i] <- fit.qmap$mhat.c # Store QDM'd m.c for final shuffle
             m.p.qmap[,i] <- fit.qmap$mhat.p # Store QDM'd m.p for final shuffle
-            if(MBCP_ITER_DEBUG_R && !is.null(current_debug_name)) {
-                 cat("Initial QDM for var ", i, " - m.c.qmap head:\n"); print(head(m.c.qmap[,i],2));
-                 cat("Initial QDM for var ", i, " - m.p.qmap head:\n"); print(head(m.p.qmap[,i],2));
-            }
         }
     }
     
     # Iteration starts with QDM-corrected data
     m.c.iter <- m.c.qmap 
     m.p.iter <- m.p.qmap
-
-    if(MBCP_ITER_DEBUG_R) {
-        cat("--- MBCp DEBUG R: Before Loop ---\n")
-        cat("Summary m.c.iter (after initial QDM, start of loop) head:\n"); print(summary(m.c.iter[,1:min(3,ncol(m.c.iter))])); print(head(m.c.iter[,1:min(3,ncol(m.c.iter))],2))
-    }
 
     # Pearson correlation to assess convergence
     if(cor.thresh > 0){
@@ -401,63 +385,25 @@ function(o.c, m.c, m.p, iter=20, cor.thresh=1e-4,
     
     o.c.cov.mat <- cov(o.c) # Covariance of original observations
     o.c.chol <- o.p.chol <- as.matrix(chol(nearPD(o.c.cov.mat)$mat))
-    if(MBCP_ITER_DEBUG_R) {
-        cat("cov(o.c) head:\n"); print(head(o.c.cov.mat[,1:min(3,ncol(o.c.cov.mat))]))
-        cat("o.c.chol head:\n"); print(head(o.c.chol[,1:min(3,ncol(o.c.chol))]))
-    }
 
     # Iterative MBC/QDM
     for(i_loop in seq(iter)){ # Renamed loop variable
-        if(MBCP_ITER_DEBUG_R && i_loop == 1){
-            cat(paste0("--- MBCp DEBUG R: Iteration ", i_loop, " ---\n"))
-            cat("Summary m.c.iter (start of iter) head:\n"); print(summary(m.c.iter[,1:min(3,ncol(m.c.iter))])); print(head(m.c.iter[,1:min(3,ncol(m.c.iter))],2))
-            
-            cov.m.c.iter.raw <- cov(m.c.iter)
-            cat("cov(m.c.iter) (raw) head:\n"); print(head(cov.m.c.iter.raw[,1:min(3,ncol(cov.m.c.iter.raw))]))
-            npd.m.c.iter.obj <- nearPD(cov.m.c.iter.raw)
-            cat("nearPD(cov(m.c.iter))$mat head:\n"); print(head(npd.m.c.iter.obj$mat[,1:min(3,ncol(npd.m.c.iter.obj$mat))]))
-        }
-
         m.c.chol <- m.p.chol <- as.matrix(chol(nearPD(cov(m.c.iter))$mat))
         
-        if(MBCP_ITER_DEBUG_R && i_loop == 1){
-            cat("m.c.chol head:\n"); print(head(m.c.chol[,1:min(3,ncol(m.c.chol))]))
-            .MRS_DEBUG_PRINT <<- TRUE 
-        }
-
         fit.mbc <- MRS(o.c=o.c, m.c=m.c.iter, m.p=m.p.iter, o.c.chol=o.c.chol,
                        o.p.chol=o.p.chol, m.c.chol=m.c.chol, m.p.chol=m.p.chol)
-        
-        if(MBCP_ITER_DEBUG_R && i_loop == 1){
-            .MRS_DEBUG_PRINT <<- FALSE
-            cat("Summary fit.mbc$mhat.c (after MRS) head:\n"); print(summary(fit.mbc$mhat.c[,1:min(3,ncol(fit.mbc$mhat.c))])); print(head(fit.mbc$mhat.c[,1:min(3,ncol(fit.mbc$mhat.c))],2))
-        }
         
         m.c.iter.after.mrs <- fit.mbc$mhat.c # Use temp vars for clarity
         m.p.iter.after.mrs <- fit.mbc$mhat.p
 
         # Inner QDM loop
         for(j in seq(ncol(o.c))){
-            if(MBCP_ITER_DEBUG_R && i_loop == 1 && j == 1){
-                cat(paste0("--- MBCp DEBUG R: Iter ", i_loop, ", Inner QDM var ", j, " ---\n"))
-                cat("Inner QDM o.c[,j] head:\n"); print(head(o.c[,j],2))
-                cat("Inner QDM m.c.iter.after.mrs[,j] head:\n"); print(head(m.c.iter.after.mrs[,j],2))
-                cat("Inner QDM m.p.iter.after.mrs[,j] head:\n"); print(head(m.p.iter.after.mrs[,j],2))
-            }
             fit.qmap.inner <- QDM(o.c=o.c[,j], m.c=m.c.iter.after.mrs[,j], m.p=m.p.iter.after.mrs[,j], ratio=FALSE,
                             n.tau=n.tau, pp.type=pp.type, trace=trace[j], trace.calc=trace.calc[j]) # Pass trace params
             m.c.iter[,j] <- fit.qmap.inner$mhat.c # Update m.c.iter
             m.p.iter[,j] <- fit.qmap.inner$mhat.p # Update m.p.iter
-            if(MBCP_ITER_DEBUG_R && i_loop == 1 && j == 1){
-                cat("Inner QDM m.c.iter[,j] (updated) head:\n"); print(head(m.c.iter[,j],2))
-                cat("Inner QDM m.p.iter[,j] (updated) head:\n"); print(head(m.p.iter[,j],2))
-            }
         }
         
-        if(MBCP_ITER_DEBUG_R && i_loop == 1){
-            cat("Summary m.c.iter (after inner QDM loop) head:\n"); print(summary(m.c.iter[,1:min(3,ncol(m.c.iter))])); print(head(m.c.iter[,1:min(3,ncol(m.c.iter))],2))
-        }
-
         # Check on Pearson correlation convergence
         if(cor.thresh > 0){
             cor.j <- cor(m.c.iter)
@@ -468,9 +414,6 @@ function(o.c, m.c, m.p, iter=20, cor.thresh=1e-4,
             cor.diff <- 0
         }
         if(!silent) cat(i_loop, cor.diff, '')
-        if(MBCP_ITER_DEBUG_R && i_loop == 1){
-             cat("\ncor.diff for iter 1:", cor.diff, "\n")
-        }
         if(cor.diff < cor.thresh) break
     }
     if(!silent) cat('\n')
