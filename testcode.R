@@ -95,7 +95,7 @@ points(c(cor(cccma$rcm.p, method = 'spearman')), c(cor(mbcp.p, method = 'spearma
 panel.hist <- function(x, ...) {
     usr <- par("usr"); on.exit(par(usr))
     par(usr = c(usr[1:2], 0, 1.5) )
-    h <- hist(x, plot = FALSE, breaks="Sturges") # Or use a fixed number of breaks
+    h <- hist(x, plot = FALSE, breaks=20) # Use 20 bins, similar to Python
     breaks <- h$breaks; nB <- length(breaks)
     y <- h$counts; y <- y/max(y)
     rect(breaks[-nB], 0, breaks[-1], y, ...) # Removed col="cyan"
