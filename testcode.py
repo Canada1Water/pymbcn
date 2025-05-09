@@ -67,42 +67,42 @@ qdm_p = np.zeros_like(gcm_p_data)
 
 print("Running Univariate QDM...")
 for i in range(n_vars):
-    # For QDM, o_c, m_c, m_p can have different lengths.
+    current_debug_name_py = None
+    # Determine if this is the first ratio variable (precipitation)
+    # np.where(py_ratio_seq)[0] gives indices of TRUE values
+    # We want to debug if py_ratio_seq[i] is TRUE and i is the first such index
+    first_ratio_var_idx = -1
+    if np.any(py_ratio_seq):
+        first_ratio_var_idx = np.where(py_ratio_seq)[0][0]
+    
+    if py_ratio_seq[i] and i == first_ratio_var_idx:
+        current_debug_name_py = "pr_initial_qdm_mp_debug"
+
     # QDM for control period:
     fit_qdm_c = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
-                   m_p=gcm_c_data[:, i], # m_p here is a placeholder, result for mhat_c is used
+                   m_p=gcm_c_data[:, i], 
                    ratio=py_ratio_seq[i], 
                    trace=py_trace_val[i], 
                    jitter_factor=0, 
                    ties='first',   
-                   pp_type='linear')
+                   pp_type='linear',
+                   debug_name=None) # No debug for control period QDM of m_p
     qdm_c[:, i] = fit_qdm_c['mhat_c']
 
     # QDM for projection period (mhat_p is desired):
-    # o_c and m_c are from control period, m_p is from projection period
     fit_qdm_p = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
-                   m_p=gcm_p_data[:, i], # This is the actual gcm_p_data
+                   m_p=gcm_p_data[:, i], 
                    ratio=py_ratio_seq[i], 
                    trace=py_trace_val[i], 
                    jitter_factor=0, 
                    ties='first',    
-                   pp_type='linear')
+                   pp_type='linear',
+                   debug_name=current_debug_name_py) # Pass debug_name for pr's m_p calculation
     qdm_p[:, i] = fit_qdm_p['mhat_p']
 
 print("Univariate QDM finished.")
 
 # --- Multivariate Bias Corrections ---
-# MBC functions expect o_c, m_c, m_p to have the same number of rows for some internal ops.
-# The R code passes full cccma$gcm.c, cccma$rcm.c, cccma$gcm.p
-# This implies that for MBCp, MBCr, MBCn, the inputs o_c, m_c, m_p should conform.
-# However, the goal is to get mhat_c (length of control) and mhat_p (length of projection).
-# The R implementation of MBCp/r/n seems to handle this by using the length of m_p
-# to determine the length of mhat_p, and length of m_c for mhat_c.
-# Let's assume for now that the Python MBC functions are structured to handle
-# m_p having a different length than o_c and m_c, and will produce mhat_p of m_p's length.
-# This needs verification in mbc_qdm.py if issues persist.
-# For now, pass them as loaded.
-
 print("\nRunning MBCp...")
 fit_mbcp = MBCp(o_c=rcm_c_data, m_c=gcm_c_data, m_p=gcm_p_data,
                ratio_seq=py_ratio_seq, trace=py_trace_val, 

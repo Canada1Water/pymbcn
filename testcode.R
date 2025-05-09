@@ -13,8 +13,12 @@ qdm.c <- cccma$gcm.c * 0
 qdm.p <- cccma$gcm.p * 0
 
 for (i in seq(ncol(cccma$gcm.c))) {
+  current_debug_name <- NULL
+  if (cccma$ratio.seq[i] && i == which(cccma$ratio.seq)[1]) { # Assuming pr is the first ratio var
+      current_debug_name <- "pr_initial_qdm_mp_debug"
+  }
   fit.qdm <- QDM(o.c = cccma$rcm.c[, i], m.c = cccma$gcm.c[, i], m.p = cccma$gcm.p[, i], 
-                 ratio = cccma$ratio.seq[i], trace = cccma$trace[i])
+                 ratio = cccma$ratio.seq[i], trace = cccma$trace[i], debug_name = current_debug_name)
   qdm.c[, i] <- fit.qdm$mhat.c
   qdm.p[, i] <- fit.qdm$mhat.p
 }

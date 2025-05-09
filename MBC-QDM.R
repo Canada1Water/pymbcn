@@ -20,7 +20,7 @@ QDM <-
 #  28: 6938-6959. doi:10.1175/JCLI-D-14-00754.1
 function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
          jitter.factor=0, n.tau=NULL, ratio.max=2, ratio.max.trace=10*trace,
-         ECBC=FALSE, ties='first', subsample=NULL, pp.type=7){
+         ECBC=FALSE, ties='first', subsample=NULL, pp.type=7, debug_name=NULL){ # Added debug_name
     # o = vector of observed values; m = vector of modelled values
     # c = current period;  p = projected period
     # ratio = TRUE --> preserve relative trends in a ratio variable
@@ -37,10 +37,13 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
     # pp.type = 7 --> plotting position type used in quantile
     # tau.m-p = F.m-p(x.m-p)
     # delta.m = x.m-p {/,-} F.m-c^-1(tau.m-p)
-    # xhat.m-p = F.o-c^-1(tau.m-p) {*,+} delta.m
-    #
-    # If jitter.factor > 0, apply a small amount of jitter to accommodate ties
-    # due to limited measurement precision
+    # xhat.m-p = F.o-c^-1(tau.m.p) {*,+} delta.m
+    
+    m.p.original.first.val.for.debug <- NA
+    if(!is.null(debug_name) && ratio && length(m.p) > 0) {
+        m.p.original.first.val.for.debug <- m.p[1]
+    }
+
     if(jitter.factor==0 && 
       (length(unique(o.c))==1 ||
        length(unique(m.c))==1 ||
@@ -52,16 +55,20 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
         m.c <- jitter(m.c, jitter.factor)
         m.p <- jitter(m.p, jitter.factor)
     }
-    # For ratio data, treat exact zeros as left censored values less than
-    # trace.calc
+    
+    m.p.after.runif.first.val.for.debug <- NA # Initialize
     if(ratio){
         epsilon <- .Machine$double.eps
         o.c[o.c < trace.calc] <- runif(sum(o.c < trace.calc), min=epsilon,
                                        max=trace.calc)
         m.c[m.c < trace.calc] <- runif(sum(m.c < trace.calc), min=epsilon,
                                        max=trace.calc)
-        m.p[m.p < trace.calc] <- runif(sum(m.p < trace.calc), min=epsilon,
+        m.p.lt.trace.calc.idx <- which(m.p < trace.calc)
+        m.p[m.p.lt.trace.calc.idx] <- runif(sum(m.p < trace.calc), min=epsilon,
                                        max=trace.calc)
+        if(!is.null(debug_name) && length(m.p) > 0) {
+             m.p.after.runif.first.val.for.debug <- m.p[1]
+        }
     }
     # Calculate empirical quantiles
     n <- length(m.p)
@@ -103,6 +110,15 @@ function(o.c, m.c, m.p, ratio=FALSE, trace=0.05, trace.calc=0.5*trace,
     }
     mhat.c <- approx(quant.m.c, quant.o.c, m.c, rule=2,
                      ties='ordered')$y
+
+    if(!is.null(debug_name) && debug_name == "pr_initial_qdm_mp_debug" && ratio && length(mhat.p) > 0){
+        cat("--- QDM DEBUG R (pr_initial_qdm_mp_debug, ratio=T) ---\n")
+        cat("Original m.p[1]:", m.p.original.first.val.for.debug, "\n")
+        cat("m.p[1] after runif (if applicable):", m.p.after.runif.first.val.for.debug, "\n")
+        cat("mhat.p[1] (before trace application):", mhat.p[1], "\n")
+        cat("trace value:", trace, "\n")
+    }
+
     # For ratio data, set values less than trace to zero
     if(ratio){
         mhat.c[mhat.c < trace] <- 0
@@ -369,22 +385,24 @@ function(o.c, m.c, m.p, iter=20, cor.thresh=1e-4,
     if(!qmap.precalc){
         if(MBCP_ITER_DEBUG_R) cat("--- MBCp DEBUG R: Initial QDM --- \n")
         for(i in seq(ncol(o.c))){
-            if(MBCP_ITER_DEBUG_R && i == 1) {
-                cat("Initial QDM for var 1 - o.c head:\n"); print(head(o.c[,i],2));
-                cat("Initial QDM for var 1 - m.c (original) head:\n"); print(head(m.c.qmap.initial[,i],2));
-                cat("Initial QDM for var 1 - m.p (original) head:\n"); print(head(m.p.qmap.initial[,i],2));
+            current_debug_name <- NULL
+            if(MBCP_ITER_DEBUG_R && ratio.seq[i] && i == which(ratio.seq)[1]) { # Assuming pr is the first ratio var
+                current_debug_name <- "pr_initial_qdm_mp_debug"
+                cat("Initial QDM for var ", i, " (", current_debug_name, ") - o.c head:\n"); print(head(o.c[,i],2));
+                cat("Initial QDM for var ", i, " - m.c (original) head:\n"); print(head(m.c.qmap.initial[,i],2));
+                cat("Initial QDM for var ", i, " - m.p (original) head:\n"); print(head(m.p.qmap.initial[,i],2));
             }
             fit.qmap <- QDM(o.c=o.c[,i], m.c=m.c.qmap.initial[,i], m.p=m.p.qmap.initial[,i], # Use original m.c, m.p
                             ratio=ratio.seq[i], trace.calc=trace.calc[i],
                             trace=trace[i], jitter.factor=jitter.factor[i],
                             n.tau=n.tau, ratio.max=ratio.max[i],
                             ratio.max.trace=ratio.max.trace[i],
-                            subsample=subsample, pp.type=pp.type)
+                            subsample=subsample, pp.type=pp.type, debug_name=current_debug_name)
             m.c.qmap[,i] <- fit.qmap$mhat.c # Store QDM'd m.c for final shuffle
             m.p.qmap[,i] <- fit.qmap$mhat.p # Store QDM'd m.p for final shuffle
-            if(MBCP_ITER_DEBUG_R && i == 1) {
-                 cat("Initial QDM for var 1 - m.c.qmap head:\n"); print(head(m.c.qmap[,i],2));
-                 cat("Initial QDM for var 1 - m.p.qmap head:\n"); print(head(m.p.qmap[,i],2));
+            if(MBCP_ITER_DEBUG_R && !is.null(current_debug_name)) {
+                 cat("Initial QDM for var ", i, " - m.c.qmap head:\n"); print(head(m.c.qmap[,i],2));
+                 cat("Initial QDM for var ", i, " - m.p.qmap head:\n"); print(head(m.p.qmap[,i],2));
             }
         }
     }

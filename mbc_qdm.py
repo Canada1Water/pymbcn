@@ -140,12 +140,16 @@ def nearPD(A, epsilon_eig=1e-6, chol_jitter_factor=1e-9, max_jitter_iter=10):
 
 def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
         jitter_factor=0, n_tau=None, ratio_max=2, ratio_max_trace=10*0.05,
-        ECBC=False, ties='first', subsample=None, pp_type='linear'):
+        ECBC=False, ties='first', subsample=None, pp_type='linear', debug_name=None): # Added debug_name
     """Quantile Delta Mapping bias correction"""
     
     o_c_arr = np.asarray(o_c).copy() # Work on copies
     m_c_arr = np.asarray(m_c).copy()
     m_p_arr = np.asarray(m_p).copy()
+
+    m_p_original_first_val_for_debug = np.nan
+    if debug_name is not None and ratio and len(m_p_arr) > 0:
+        m_p_original_first_val_for_debug = m_p_arr[0]
 
     # Determine the actual jitter factor to use (R's 'factor' for jitter function)
     current_r_jitter_factor = jitter_factor
@@ -180,7 +184,7 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
             elif arr_name == 'm_c': m_c_arr += noise
             elif arr_name == 'm_p': m_p_arr += noise
 
-
+    m_p_after_runif_first_val_for_debug = np.nan # Initialize
     # Handle ratio data
     if ratio:
         epsilon = np.finfo(float).eps # A very small number
@@ -199,6 +203,9 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
         count_m_p = np.sum(mask_m_p)
         if count_m_p > 0:
             m_p_arr[mask_m_p] = np.random.uniform(epsilon, trace_calc, count_m_p)
+        
+        if debug_name is not None and len(m_p_arr) > 0:
+            m_p_after_runif_first_val_for_debug = m_p_arr[0]
 
 
     # Calculate empirical quantiles
@@ -281,6 +288,13 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
 
     mhat_c = np.interp(m_c_arr, quant_m_c, quant_o_c, left=quant_o_c[0], right=quant_o_c[-1])
     
+    if debug_name == "pr_initial_qdm_mp_debug" and ratio and len(mhat_p) > 0:
+        print("--- QDM DEBUG PY (pr_initial_qdm_mp_debug, ratio=T) ---")
+        print("Original m_p_arr[0]:", m_p_original_first_val_for_debug)
+        print("m_p_arr[0] after uniform (if applicable):", m_p_after_runif_first_val_for_debug)
+        print("mhat_p[0] (before trace application):", mhat_p[0])
+        print("trace value:", trace)
+
     # Handle ratio data output
     if ratio:
         mhat_c[mhat_c < trace] = 0
@@ -663,22 +677,24 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
     if not qmap_precalc:
         if MBCP_ITER_DEBUG_PY: print("--- MBCp DEBUG PY: Initial QDM ---")
         for i in range(n_vars):
-            if MBCP_ITER_DEBUG_PY and i == 0:
-                print("Initial QDM for var 0 - o_c_arr head:\n", o_c_arr[:2,i])
-                print("Initial QDM for var 0 - m_c_qmap_initial_orig_mc head:\n", m_c_qmap_initial_orig_mc[:2,i])
-                print("Initial QDM for var 0 - m_p_qmap_initial_orig_mp head:\n", m_p_qmap_initial_orig_mp[:2,i])
+            current_debug_name_py = None
+            if MBCP_ITER_DEBUG_PY and ratio_seq_list[i] and i == np.where(ratio_seq_list)[0][0] if np.any(ratio_seq_list) else False :
+                current_debug_name_py = "pr_initial_qdm_mp_debug" # Assuming pr is the first ratio var
+                print(f"Initial QDM for var {i} ({current_debug_name_py}) - o_c_arr head:\n", o_c_arr[:2,i])
+                print(f"Initial QDM for var {i} - m_c_qmap_initial_orig_mc head:\n", m_c_qmap_initial_orig_mc[:2,i])
+                print(f"Initial QDM for var {i} - m_p_qmap_initial_orig_mp head:\n", m_p_qmap_initial_orig_mp[:2,i])
             
             fit_qmap = QDM(o_c_arr[:,i], m_c_qmap_initial_orig_mc[:,i], m_p_qmap_initial_orig_mp[:,i], 
                           ratio=ratio_seq_list[i], trace_calc=trace_calc_list[i],
                           trace=trace_list[i], jitter_factor=jitter_factor_list[i], # Use per-var jitter
                           n_tau=n_tau, ratio_max=ratio_max_list[i],
                           ratio_max_trace=ratio_max_trace_list[i],
-                          subsample=subsample, pp_type=pp_type, ties=ties)
+                          subsample=subsample, pp_type=pp_type, ties=ties, debug_name=current_debug_name_py)
             m_c_after_initial_qdm[:,i] = fit_qmap['mhat_c']
             m_p_after_initial_qdm[:,i] = fit_qmap['mhat_p']
-            if MBCP_ITER_DEBUG_PY and i == 0:
-                print("Initial QDM for var 0 - m_c_after_initial_qdm head:\n", m_c_after_initial_qdm[:2,i])
-                print("Initial QDM for var 0 - m_p_after_initial_qdm head:\n", m_p_after_initial_qdm[:2,i])
+            if MBCP_ITER_DEBUG_PY and current_debug_name_py is not None:
+                print(f"Initial QDM for var {i} - m_c_after_initial_qdm head:\n", m_c_after_initial_qdm[:2,i])
+                print(f"Initial QDM for var {i} - m_p_after_initial_qdm head:\n", m_p_after_initial_qdm[:2,i])
     else: # If qmap_precalc is True, assume m_c_arr and m_p_arr are already QDM'd
         m_c_after_initial_qdm = m_c_arr.copy()
         m_p_after_initial_qdm = m_p_arr.copy()
