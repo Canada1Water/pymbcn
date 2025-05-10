@@ -203,6 +203,10 @@ for plot_var_idx, plot_var_name in enumerate(variable_names):
     plt.close()
     print(f"{plot_var_name.upper()} GCM_P vs QDM_P time series plots saved to {plot_var_name}_gcm_p_vs_qdm_p_timeseries.png")
 
+# Generate rotation matrices for MBCn (same across all grid points)
+n_iter_mbcn = 30  # Match MBCn's default iter parameter
+rot_matrices_mbcn = [rot.random(n_vars) for _ in range(n_iter_mbcn)]
+
 # --- Multivariate Bias Corrections ---
 print("\nRunning MBCp...")
 fit_mbcp = MBCp(o_c=rcm_c_data, m_c=gcm_c_data, m_p=gcm_p_data,
@@ -230,7 +234,8 @@ fit_mbcn = MBCn(o_c=rcm_c_data, m_c=gcm_c_data, m_p=gcm_p_data,
                jitter_factor=0, 
                ties='first',    
                silent=False, n_escore=100, # Changed n_escore to 100
-               pp_type='linear') 
+               pp_type='linear',
+               rot_seq=rot_matrices_mbcn) # Pass pre-generated rotation matrices
 mbcn_c = fit_mbcn['mhat_c']
 mbcn_p = fit_mbcn['mhat_p']
 print("MBCn finished.\n")
