@@ -62,12 +62,19 @@ mbcn_p = fit_mbcn['mhat_p']
 
 ## Documentation
 
+See MBC_R/MBC.pdf
 
 ## References
 
-Based on methods described in:
-- Cannon, A.J., 2018. Multivariate quantile mapping bias correction...
-- Vrac, M., 2018. Multivariate bias adjustment of high-dimensional...
+Cannon, A.J., 2018. Multivariate quantile mapping bias correction: An N-dimensional probability density function transform for climate model simulations of multiple variables. Climate Dynamics, 50(1-2):31-49. doi:10.1007/s00382-017-3580-6
+
+Cannon, A.J., 2016. Multivariate bias correction of climate model output: Matching marginal distributions and inter-variable dependence structure. Journal of Climate, 29:7045-7064. doi:10.1175/JCLID-15-0679.1
+
+Cannon, A.J., S.R. Sobie, and T.Q. Murdock, 2015. Bias correction of simulated precipitation by quantile mapping: How well do methods preserve relative changes in quantiles and extremes? Journal of Climate, 28:6938-6959. doi:10.1175/JCLI-D-14-00754.1
+
+Francois, B., M. Vrac, A.J. Cannon, Y. Robin, and D. Allard, 2020. Multivariate bias corrections of climate simulations: Which benefits for which losses? Earth System Dynamics, 11:537-562. doi:10.5194/esd-11-537-2020
+
+Vrac, M., 2018. Multivariate bias adjustment of high-dimensional climate simulations: the Rank Resampling for Distributions and Dependences (R2D2) bias correction. Hydrology and Earth System Sciences, 22:3175-3196. doi:10.5194/hess-22-3175-2018
 
 ## License
 
