@@ -496,5 +496,43 @@ if 'escore_iter' in fit_mbcn and isinstance(fit_mbcn['escore_iter'], dict):
 else:
     print("  (No iteration energy scores available in fit_mbcn)")
 
+# --- Write Python Results to NetCDF ---
+print("\nWriting Python corrected data to NetCDF...")
+output_nc_file_py = 'python_corrected_output.nc'
+correction_methods_py = {
+    'qdm': (qdm_c, qdm_p),
+    'mbcp': (mbcp_c, mbcp_p),
+    'mbcr': (mbcr_c, mbcr_p),
+    'mbcn': (mbcn_c, mbcn_p)
+}
+
+try:
+    with netCDF4.Dataset(output_nc_file_py, 'w', format='NETCDF4') as nc_out:
+        # Define dimensions
+        time_c_len_out = gcm_c_data.shape[0]
+        time_p_len_out = gcm_p_data.shape[0]
+        nc_out.createDimension('time_c', time_c_len_out)
+        nc_out.createDimension('time_p', time_p_len_out)
+
+        for method_name, (data_c, data_p) in correction_methods_py.items():
+            for i, var_name in enumerate(variable_names):
+                # Control period variable
+                var_c_name_nc = f"{method_name}_{var_name}_c"
+                nc_var_c = nc_out.createVariable(var_c_name_nc, 'f4', ('time_c',))
+                nc_var_c[:] = data_c[:, i]
+                nc_var_c.long_name = f"{method_name.upper()} corrected {var_name} for control period"
+                nc_var_c.units = "unknown" # Add units if known
+
+                # Projection period variable
+                var_p_name_nc = f"{method_name}_{var_name}_p"
+                nc_var_p = nc_out.createVariable(var_p_name_nc, 'f4', ('time_p',))
+                nc_var_p[:] = data_p[:, i]
+                nc_var_p.long_name = f"{method_name.upper()} corrected {var_name} for projection period"
+                nc_var_p.units = "unknown" # Add units if known
+        
+        nc_out.description = "Bias corrected climate data from Python script"
+    print(f"Python corrected data successfully written to {output_nc_file_py}")
+except Exception as e:
+    print(f"Error writing Python NetCDF output: {e}")
 
 print("\nScript finished.")

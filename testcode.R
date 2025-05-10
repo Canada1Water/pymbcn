@@ -215,13 +215,93 @@ dev.new()
 pairs(mbcn.c, main = 'MBCn calibration', col = '#FFA5001A', diag.panel = panel.hist, upper.panel=panel.smooth, lower.panel=panel.smooth)
 
 # Energy distance skill score relative to univariate QDM
-escore.qdm <- escore(cccma$rcm.p, qdm.p, scale.x = TRUE)
-escore.mbcp <- escore(cccma$rcm.p, mbcp.p, scale.x = TRUE)
-escore.mbcr <- escore(cccma$rcm.p, mbcr.p, scale.x = TRUE)
-escore.mbcn <- escore(cccma$rcm.p, mbcn.p, scale.x = TRUE)
+n_escore_sample_r <- 100 # Match Python's sample size for these ES calculations
+escore.qdm <- escore(cccma$rcm.p, qdm.p, scale.x = TRUE, n.cases = n_escore_sample_r)
+escore.mbcp <- escore(cccma$rcm.p, mbcp.p, scale.x = TRUE, n.cases = n_escore_sample_r)
+escore.mbcr <- escore(cccma$rcm.p, mbcr.p, scale.x = TRUE, n.cases = n_escore_sample_r)
+escore.mbcn <- escore(cccma$rcm.p, mbcn.p, scale.x = TRUE, n.cases = n_escore_sample_r)
 
 cat('ESS (MBCp):', 1 - escore.mbcp / escore.qdm, '\n')
 cat('ESS (MBCr):', 1 - escore.mbcr / escore.qdm, '\n')
 cat('ESS (MBCn):', 1 - escore.mbcn / escore.qdm, '\n')
+
+# --- Write R Results to NetCDF ---
+cat("\nWriting R corrected data to NetCDF...\n")
+if (!requireNamespace("ncdf4", quietly = TRUE)) {
+  cat("Package 'ncdf4' not found. Please install it to write NetCDF output.\n")
+} else {
+  library(ncdf4)
+  output_nc_file_r <- 'r_corrected_output.nc'
+  
+  # Define dimensions
+  time_c_len_r <- nrow(qdm.c)
+  time_p_len_r <- nrow(qdm.p)
+  dim_time_c <- ncdim_def("time_c", "index", 1:time_c_len_r, unlim=FALSE, create_dimvar=TRUE)
+  dim_time_p <- ncdim_def("time_p", "index", 1:time_p_len_r, unlim=FALSE, create_dimvar=TRUE)
+  
+  var_names_r <- colnames(qdm.c) # Should be same for all matrices
+  nc_vars_list <- list()
+  
+  correction_methods_r <- list(
+    qdm = list(c = qdm.c, p = qdm.p),
+    mbcp = list(c = mbcp.c, p = mbcp.p),
+    mbcr = list(c = mbcr.c, p = mbcr.p),
+    mbcn = list(c = mbcn.c, p = mbcn.p)
+  )
+
+  for (method_name in names(correction_methods_r)) {
+    data_list <- correction_methods_r[[method_name]]
+    for (i in 1:length(var_names_r)) {
+      var_name <- var_names_r[i]
+      
+      # Control period variable
+      var_c_name_nc_r <- paste0(method_name, "_", var_name, "_c")
+      nc_vars_list[[var_c_name_nc_r]] <- ncvar_def(
+        name = var_c_name_nc_r,
+        units = "unknown", # Add units if known
+        dim = list(dim_time_c),
+        missval = -9999, # Define a missing value
+        longname = paste0(toupper(method_name), " corrected ", var_name, " for control period")
+      )
+      
+      # Projection period variable
+      var_p_name_nc_r <- paste0(method_name, "_", var_name, "_p")
+      nc_vars_list[[var_p_name_nc_r]] <- ncvar_def(
+        name = var_p_name_nc_r,
+        units = "unknown", # Add units if known
+        dim = list(dim_time_p),
+        missval = -9999, # Define a missing value
+        longname = paste0(toupper(method_name), " corrected ", var_name, " for projection period")
+      )
+    }
+  }
+  
+  # Create NetCDF file
+  nc_out_r <- NULL
+  tryCatch({
+    nc_out_r <- nc_create(output_nc_file_r, nc_vars_list, force_v4 = TRUE)
+    
+    # Put data into variables
+    for (method_name in names(correction_methods_r)) {
+      data_list <- correction_methods_r[[method_name]]
+      for (i in 1:length(var_names_r)) {
+        var_name <- var_names_r[i]
+        var_c_name_nc_r <- paste0(method_name, "_", var_name, "_c")
+        ncvar_put(nc_out_r, nc_vars_list[[var_c_name_nc_r]], data_list$c[, i])
+        
+        var_p_name_nc_r <- paste0(method_name, "_", var_name, "_p")
+        ncvar_put(nc_out_r, nc_vars_list[[var_p_name_nc_r]], data_list$p[, i])
+      }
+    }
+    ncatt_put(nc_out_r, 0, "description", "Bias corrected climate data from R script")
+    cat(paste0("R corrected data successfully written to ", output_nc_file_r, "\n"))
+  }, error = function(e) {
+    cat(paste0("Error writing R NetCDF output: ", e$message, "\n"))
+  }, finally = {
+    if (!is.null(nc_out_r)) {
+      nc_close(nc_out_r)
+    }
+  })
+}
 
 ## End(Not run)
