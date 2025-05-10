@@ -1,8 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, pearsonr
 import netCDF4
+import seaborn as sns # Import seaborn
 from mbc_qdm import QDM, MRS, escore, MBCr, MBCp, MBCn
 
 # --- Global Random Seed for Reproducibility ---
@@ -356,44 +357,72 @@ def plot_r_style_correlations(obs_ref_c, obs_ref_p, qdm_c_data, qdm_p_data, mbc_
     plt.savefig(f"{mbc_method_name.lower()}_r_style_correlations.png")
     plt.close()
 
+# Helper functions for seaborn pairplot
+def lower_scatter_smooth(x, y, **kwargs):
+    color = kwargs.pop('color', 'black') # Default to black if not provided by pairplot
+    alpha_scatter = kwargs.pop('alpha_scatter', 0.3) # Alpha for scatter points
+    sns.scatterplot(x=x, y=y, color=color, alpha=alpha_scatter, s=5, **kwargs)
+    # Add LOESS line (lowess=True in regplot)
+    # Ensure regplot gets a color that stands out, e.g., red
+    sns.regplot(x=x, y=y, lowess=True, scatter=False, color='red', line_kws={'linewidth': 1})
 
-def plot_pairs(data, title, var_names_list, diagonal='kde', color_hex='#0000001A'):
+def upper_corr(x, y, **kwargs):
+    color = kwargs.pop('color', 'black') # Not used for text, but good to pop
+    if not x.empty and not y.empty:
+        # Drop NaNs for correlation calculation
+        valid_indices = ~ (np.isnan(x) | np.isnan(y))
+        x_valid = x[valid_indices]
+        y_valid = y[valid_indices]
+        if len(x_valid) > 1 and len(y_valid) > 1: # Need at least 2 points for correlation
+            r, _ = pearsonr(x_valid, y_valid)
+            ax = plt.gca()
+            # Adjust text size based on correlation magnitude for better visibility
+            text_cex = 0.8 + 1.2 * abs(r) # Scale font size
+            ax.text(0.5, 0.5, f'{r:.2f}', horizontalalignment='center', verticalalignment='center', 
+                    fontsize=10 * text_cex, transform=ax.transAxes) # Base fontsize 10
+        else:
+            ax = plt.gca()
+            ax.text(0.5, 0.5, 'NA', horizontalalignment='center', verticalalignment='center', fontsize=10, transform=ax.transAxes)
+
+
+def plot_pairs(data, title, var_names_list, diagonal='hist', color_hex='#0000001A'):
     if not np.all(np.isfinite(data)):
-        # print(f"Warning: Non-finite values in data for '{title}'. Skipping pair plot.")
-        # Create an empty plot or save a message
         fig, ax = plt.subplots(); ax.text(0.5, 0.5, "Pair plot skipped (non-finite data)", ha='center', va='center')
         plt.savefig(f"{title.replace(' ', '_').lower()}_pairs_skipped.png"); plt.close()
         return
 
     df = pd.DataFrame(data, columns=var_names_list)
     if df.empty:
-        # print(f"Warning: DataFrame empty for '{title}'. Skipping pair plot.")
         fig, ax = plt.subplots(); ax.text(0.5, 0.5, "Pair plot skipped (empty data)", ha='center', va='center')
         plt.savefig(f"{title.replace(' ', '_').lower()}_pairs_empty.png"); plt.close()
         return
 
-    fig = plt.figure(figsize=(12, 12)) 
+    # Extract base color for seaborn, alpha is handled by scatterplot/histplot
+    base_color = color_hex[:-2] if len(color_hex) == 9 and color_hex[0] == '#' else color_hex
+    alpha_val = float(int(color_hex[-2:], 16))/255.0 if len(color_hex) == 9 else 0.5
+
+    g = sns.PairGrid(df, diag_sharey=False) # diag_sharey=False is important for different scales
+    
+    # Diagonal: Histograms
+    if diagonal == 'hist':
+        g.map_diag(plt.hist, bins=20, color=base_color, alpha=alpha_val, edgecolor=base_color) # Pass alpha here
+    elif diagonal == 'kde':
+        g.map_diag(sns.kdeplot, color=base_color, fill=True, alpha=alpha_val) # Pass alpha here
+
+    # Lower triangle: Scatter plot with LOESS smooth
+    g.map_lower(lower_scatter_smooth, color=base_color, alpha_scatter=alpha_val) # Pass base_color and alpha
+
+    # Upper triangle: Pearson correlation coefficient
+    g.map_upper(upper_corr)
+    
+    g.fig.suptitle(title, y=1.02) # Adjust y for suptitle to avoid overlap
+    
     try:
-        # Ensure color for hist_kwds is just the hex color, not with alpha
-        hist_color = color_hex[:-2] if len(color_hex) == 9 and color_hex[0] == '#' else color_hex
-        
-        axes = pd.plotting.scatter_matrix(df, diagonal=diagonal, alpha=float(int(color_hex[-2:], 16))/255.0 if len(color_hex) == 9 else 0.5, 
-                                          c=color_hex[:-2] if len(color_hex) == 9 else color_hex, 
-                                          s=5, 
-                                          hist_kwds={'color': hist_color, 'bins': 20}, # Added bins for better hist
-                                          density_kwds={'color': hist_color}) # Color for KDE
-        plt.suptitle(title)
-        # Axis adjustments (e.g., for 'huss') can be added here if needed
-        # Based on R code, no specific axis limits, but huss might need non-negative.
-        # Pandas scatter_matrix usually handles ranges well.
         plt.savefig(f"{title.replace(' ', '_').lower()}_pairs.png")
     except Exception as e:
-        print(f"Error in scatter_matrix for {title}: {e}")
-        fig = plt.figure(figsize=(3,3)) 
-        plt.text(0.5, 0.5, f"Error in scatter_matrix for {title}", ha='center', va='center')
-        plt.savefig(f"{title.replace(' ', '_').lower()}_pairs_error.png")
+        print(f"Error saving pairplot for {title}: {e}")
     finally:
-        plt.close(fig)
+        plt.close(g.fig)
 
 
 # --- Plotting Results ---
