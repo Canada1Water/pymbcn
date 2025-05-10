@@ -200,19 +200,31 @@ panel.hist <- function(x, ...) {
     rect(breaks[-nB], 0, breaks[-1], y, ...) # Removed col="cyan"
 }
 
+# Helper function for correlation on pairs plot upper panel
+panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...) {
+    usr <- par("usr"); on.exit(par(usr))
+    par(usr = c(0, 1, 0, 1))
+    r_val <- cor(x, y, use="pairwise.complete.obs") # Get correlation coefficient
+    txt <- format(c(r_val, 0.123456789), digits = digits)[1]
+    txt <- paste0(prefix, txt)
+    if(missing(cex.cor)) cex.cor <- 0.8/strwidth(txt)
+    # Scale text size by absolute correlation magnitude, ensure visibility for small correlations
+    text(0.5, 0.5, txt, cex = cex.cor * (abs(r_val) * 0.7 + 0.3)) 
+}
+
 # Pairwise scatterplots
 dev.new()
-pairs(cccma$gcm.c, main = 'CanESM2 calibration', col = '#0000001A', diag.panel = panel.hist, upper.panel=NULL, lower.panel=panel.smooth)
+pairs(cccma$gcm.c, main = 'CanESM2 calibration', col = '#0000001A', diag.panel = panel.hist, upper.panel=panel.cor, lower.panel=panel.smooth)
 dev.new()
-pairs(cccma$rcm.c, main = 'CanRCM4 calibration', col = '#0000001A', diag.panel = panel.hist, upper.panel=NULL, lower.panel=panel.smooth)
+pairs(cccma$rcm.c, main = 'CanRCM4 calibration', col = '#0000001A', diag.panel = panel.hist, upper.panel=panel.cor, lower.panel=panel.smooth)
 dev.new()
-pairs(qdm.c, main = 'QDM calibration', col = '#0000001A', diag.panel = panel.hist, upper.panel=NULL, lower.panel=panel.smooth)
+pairs(qdm.c, main = 'QDM calibration', col = '#0000001A', diag.panel = panel.hist, upper.panel=panel.cor, lower.panel=panel.smooth)
 dev.new()
-pairs(mbcp.c, main = 'MBCp calibration', col = '#FF00001A', diag.panel = panel.hist, upper.panel=NULL, lower.panel=panel.smooth)
+pairs(mbcp.c, main = 'MBCp calibration', col = '#FF00001A', diag.panel = panel.hist, upper.panel=panel.cor, lower.panel=panel.smooth)
 dev.new()
-pairs(mbcr.c, main = 'MBCr calibration', col = '#0000FF1A', diag.panel = panel.hist, upper.panel=NULL, lower.panel=panel.smooth)
+pairs(mbcr.c, main = 'MBCr calibration', col = '#0000FF1A', diag.panel = panel.hist, upper.panel=panel.cor, lower.panel=panel.smooth)
 dev.new()
-pairs(mbcn.c, main = 'MBCn calibration', col = '#FFA5001A', diag.panel = panel.hist, upper.panel=NULL, lower.panel=panel.smooth)
+pairs(mbcn.c, main = 'MBCn calibration', col = '#FFA5001A', diag.panel = panel.hist, upper.panel=panel.cor, lower.panel=panel.smooth)
 
 # Energy distance skill score relative to univariate QDM
 escore.qdm <- escore(cccma$rcm.p, qdm.p, scale.x = TRUE)
