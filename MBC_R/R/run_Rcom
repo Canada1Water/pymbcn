@@ -1,0 +1,151 @@
+no line running prints
+Rscript testcode.R
+or 
+R < testcode.R --no-save
+
+R < testcode.R --no-save
+(base) [guido@xxx Fri May 09 11:41:21] master ~/MBC/MBC_R/R
+——> R < testcode.R --no-save
+
+R version 4.4.3 (2025-02-28) -- "Trophy Case"
+Copyright (C) 2025 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ## Not run:
+> library("MBC")
+Loading required package: Matrix
+Loading required package: energy
+Loading required package: FNN
+> # Load necessary data
+> #data("cccma.RData")
+> load("cccma.RData") 
+> set.seed(1)
+> 
+> # Univariate quantile mapping
+> qdm.c <- cccma$gcm.c * 0
+> qdm.p <- cccma$gcm.p * 0
+> 
+> for (i in seq(ncol(cccma$gcm.c))) {
++   fit.qdm <- QDM(o.c = cccma$rcm.c[, i], m.c = cccma$gcm.c[, i], m.p = cccma$gcm.p[, i], 
++                  ratio = cccma$ratio.seq[i], trace = cccma$trace[i])
++   qdm.c[, i] <- fit.qdm$mhat.c
++   qdm.p[, i] <- fit.qdm$mhat.p
++ }
+> 
+> # Multivariate MBCp bias correction
+> fit.mbcp <- MBCp(o.c = cccma$rcm.c, m.c = cccma$gcm.c, m.p = cccma$gcm.p, 
++                   ratio.seq = cccma$ratio.seq, trace = cccma$trace)
+1 0.1363346 2 0.01041524 3 0.001582553 4 0.0004405866 5 0.0001807774 6 9.293285e-05 
+> mbcp.c <- fit.mbcp$mhat.c
+> mbcp.p <- fit.mbcp$mhat.p
+> 
+> # Multivariate MBCr bias correction
+> fit.mbcr <- MBCr(o.c = cccma$rcm.c, m.c = cccma$gcm.c, m.p = cccma$gcm.p, 
++                   ratio.seq = cccma$ratio.seq, trace = cccma$trace)
+1 0.1261986 0.1727507 2 0.1353311 0.01811302 3 0.20371 0.002430912 4 0.4616438 0.0003616098 5 0.8442922 5.318191e-05 
+> mbcr.c <- fit.mbcr$mhat.c
+> mbcr.p <- fit.mbcr$mhat.p
+> 
+> # Multivariate MBCn bias correction
+> fit.mbcn <- MBCn(o.c = cccma$rcm.c, m.c = cccma$gcm.c, m.p = cccma$gcm.p, 
++                   ratio.seq = cccma$ratio.seq, trace = cccma$trace)
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 
+> mbcn.c <- fit.mbcn$mhat.c
+> mbcn.p <- fit.mbcn$mhat.p
+> colnames(mbcn.c) <- colnames(mbcn.p) <- colnames(cccma$rcm.c)
+> 
+> # Correlation matrices (Pearson and Spearman)
+> # MBCp
+> dev.new()
+dev.new(): using pdf(file="Rplots7.pdf")
+> par(mfrow = c(2, 2))
+> 
+> # Pearson correlation plots for MBCp calibration
+> plot(c(cor(cccma$rcm.c)), c(cor(qdm.c)), col = 'black', pch = 19, 
++      xlim = c(-1, 1), ylim = c(-1, 1), 
++      xlab = 'CanRCM4', ylab = 'CanESM2 MBCp', 
++      main = 'Pearson correlation\nMBCp calibration')
+> abline(0, 1)
+> grid()
+> points(c(cor(cccma$rcm.c)), c(cor(mbcp.c)), col = 'red')
+> 
+> # Pearson correlation plots for MBCp evaluation
+> plot(c(cor(cccma$rcm.p)), c(cor(qdm.p)), col = 'black', pch = 19, 
++      xlim = c(-1, 1), ylim = c(-1, 1), 
++      xlab = 'CanRCM4', ylab = 'CanESM2 MBCp', 
++      main = 'Pearson correlation\nMBCp evaluation')
+> abline(0, 1)
+> grid()
+> points(c(cor(cccma$rcm.p)), c(cor(mbcp.p)), col = 'red')
+> 
+> # Spearman correlation plots for MBCp calibration
+> plot(c(cor(cccma$rcm.c, method = 'spearman')), c(cor(qdm.c, method = 'spearman')), 
++      col = 'black', pch = 19, xlim = c(-1, 1), ylim = c(-1, 1), 
++      xlab = 'CanRCM4', ylab = 'CanESM2 MBCp', 
++      main = 'Spearman correlation\nMBCp calibration')
+> abline(0, 1)
+> grid()
+> points(c(cor(cccma$rcm.c, method = 'spearman')), c(cor(mbcp.c, method = 'spearman')), col = 'red')
+> 
+> # Spearman correlation plots for MBCp evaluation
+> plot(c(cor(cccma$rcm.p, method = 'spearman')), c(cor(qdm.p, method = 'spearman')), 
++      col = 'black', pch = 19, xlim = c(-1, 1), ylim = c(-1, 1), 
++      xlab = 'CanRCM4', ylab = 'CanESM2 MBCp', 
++      main = 'Spearman correlation\nMBCp evaluation')
+> abline(0, 1)
+> grid()
+> points(c(cor(cccma$rcm.p, method = 'spearman')), c(cor(mbcp.p, method = 'spearman')), col = 'red')
+> 
+> # Repeat for MBCr and MBCn using similar structure
+> # MBCr plots...
+> # MBCn plots...
+> 
+> # Pairwise scatterplots
+> dev.new()
+dev.new(): using pdf(file="Rplots8.pdf")
+> pairs(cccma$gcm.c, main = 'CanESM2 calibration', col = '#0000001A')
+> dev.new()
+dev.new(): using pdf(file="Rplots9.pdf")
+> pairs(cccma$rcm.c, main = 'CanRCM4 calibration', col = '#0000001A')
+> dev.new()
+dev.new(): using pdf(file="Rplots10.pdf")
+> pairs(qdm.c, main = 'QDM calibration', col = '#0000001A')
+> dev.new()
+dev.new(): using pdf(file="Rplots11.pdf")
+> pairs(mbcp.c, main = 'MBCp calibration', col = '#FF00001A')
+> dev.new()
+dev.new(): using pdf(file="Rplots12.pdf")
+> pairs(mbcr.c, main = 'MBCr calibration', col = '#0000FF1A')
+> dev.new()
+dev.new(): using pdf(file="Rplots13.pdf")
+> pairs(mbcn.c, main = 'MBCn calibration', col = '#FFA5001A')
+> 
+> # Energy distance skill score relative to univariate QDM
+> escore.qdm <- escore(cccma$rcm.p, qdm.p, scale.x = TRUE)
+> escore.mbcp <- escore(cccma$rcm.p, mbcp.p, scale.x = TRUE)
+> escore.mbcr <- escore(cccma$rcm.p, mbcr.p, scale.x = TRUE)
+> escore.mbcn <- escore(cccma$rcm.p, mbcn.p, scale.x = TRUE)
+> 
+> cat('ESS (MBCp):', 1 - escore.mbcp / escore.qdm, '\n')
+ESS (MBCp): 0.7720482 
+> cat('ESS (MBCr):', 1 - escore.mbcr / escore.qdm, '\n')
+ESS (MBCr): 0.7024258 
+> cat('ESS (MBCn):', 1 - escore.mbcn / escore.qdm, '\n')
+ESS (MBCn): 0.9310328 
+> ## End(Not run)
+> 
+

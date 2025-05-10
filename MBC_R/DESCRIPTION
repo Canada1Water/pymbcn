@@ -1,0 +1,23 @@
+Package: MBC
+Version: 0.10-7
+Title: Multivariate Bias Correction of Climate Model Outputs
+Authors@R: person(given="Alex J.", family="Cannon",
+    email="alex.cannon@canada.ca", role=c("aut", "cre"),
+    comment=c(ORCID="0000-0002-8025-3790"))
+Maintainer: Alex J. Cannon <alex.cannon@canada.ca>
+Description: Calibrate and apply multivariate bias correction algorithms
+    for climate model simulations of multiple climate variables. Three methods
+    described by Cannon (2016) <doi:10.1175/JCLI-D-15-0679.1> and 
+    Cannon (2018) <doi:10.1007/s00382-017-3580-6> are implemented —
+    (i) MBC Pearson correlation (MBCp), (ii) MBC rank correlation (MBCr),
+    and (iii) MBC N-dimensional PDF transform (MBCn) — as is the Rank
+    Resampling for Distributions and Dependences (R2D2) method.
+Date: 2024-11-12
+License: GPL-2
+Depends: R (>= 2.10), Matrix, energy, FNN
+Encoding: UTF-8
+NeedsCompilation: no
+Author: Alex J. Cannon [aut, cre] (<https://orcid.org/0000-0002-8025-3790>)
+Packaged: 2024-11-12 18:01:00 UTC; rac001
+Repository: CRAN
+Date/Publication: 2024-11-12 19:20:02 UTC
