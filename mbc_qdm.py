@@ -663,7 +663,7 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
 def MBCn(o_c, m_c, m_p, iter=30, ratio_seq=None, trace=0.05,
          trace_calc=0.5*0.05, jitter_factor=0, n_tau=None, ratio_max=2,
          ratio_max_trace=10*0.05, ties='first', qmap_precalc=False, 
-         rot_seq=None, silent=False, n_escore=0, return_all=False,
+         rot_seq=None, silent=False, n_escore=None, return_all=False,
          subsample=None, pp_type='linear'):
     """Multivariate quantile mapping bias correction (N-dimensional pdf transfer)"""
     n_vars = o_c.shape[1]
