@@ -5,7 +5,7 @@ from scipy.stats import spearmanr # Removed pearsonr
 import netCDF4
 import seaborn as sns # Import seaborn
 import statsmodels.api as sm # Import statsmodels for lowess
-from pymbcn import QDM, MRS, escore, MBCr, MBCp, MBCn
+from pymbcn import QDM, MRS, escore, MBCr, MBCp, MBCn, rot
 
 # --- Global Random Seed for Reproducibility ---
 np.random.seed(1)
