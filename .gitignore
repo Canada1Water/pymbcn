@@ -3,3 +3,9 @@
 *png
 __pycache__
 
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Data files
+*.nc
