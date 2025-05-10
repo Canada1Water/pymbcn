@@ -299,7 +299,7 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
     return {'mhat_c': mhat_c, 'mhat_p': mhat_p}
 
 def escore(x, y, scale_x=False, n_cases=None, alpha=1, method="cluster"):
-    """Energy score for assessing equality of multivariate samples"""
+    """Energy score matching R's energy::edist implementation"""
     x_arr = np.asarray(x)
     y_arr = np.asarray(y)
 
@@ -310,16 +310,14 @@ def escore(x, y, scale_x=False, n_cases=None, alpha=1, method="cluster"):
     n_y = y_arr.shape[0]
 
     if scale_x:
-        # Scale x and use same parameters to scale y
-        mean_x = np.mean(x_arr, axis=0)
-        std_x = np.std(x_arr, axis=0, ddof=1)
-        std_x[std_x < np.finfo(float).eps] = 1.0  # Avoid division by zero
+        # Scale using mean and std of combined x and y
+        combined = np.vstack((x_arr, y_arr))
+        mean_combined = np.mean(combined, axis=0)
+        std_combined = np.std(combined, axis=0, ddof=1)
+        std_combined[std_combined < np.finfo(float).eps] = 1.0
         
-        x_scaled = (x_arr - mean_x) / std_x
-        y_scaled = (y_arr - mean_x) / std_x
-        
-        x_arr = x_scaled
-        y_arr = y_scaled
+        x_arr = (x_arr - mean_combined) / std_combined
+        y_arr = (y_arr - mean_combined) / std_combined
     
     if n_cases is not None:
         n_cases = min(n_x, n_y, n_cases)
@@ -330,24 +328,23 @@ def escore(x, y, scale_x=False, n_cases=None, alpha=1, method="cluster"):
             y_arr = y_arr[y_indices]
             n_x = n_y = n_cases
     
-    # Combine x and y for distance calculation
-    combined = np.vstack((x_arr, y_arr))
+    # Calculate distances directly without full matrix
+    # This matches R's energy::edist implementation better
+    d_xy = np.mean([np.linalg.norm(x_arr[i] - y_arr[j]) 
+                   for i in range(n_x) for j in range(n_y)])
     
-    # Calculate pairwise distances
-    distances = cdist(combined, combined, 'euclidean')
+    d_xx = np.mean([np.linalg.norm(x_arr[i] - x_arr[j]) 
+                   for i in range(n_x) for j in range(i+1, n_x)])
     
-    # Extract the relevant blocks
-    d_xx = distances[:n_x, :n_x]
-    d_yy = distances[n_x:, n_x:]
-    d_xy = distances[:n_x, n_x:]
+    d_yy = np.mean([np.linalg.norm(y_arr[i] - y_arr[j]) 
+                   for i in range(n_y) for j in range(i+1, n_y)])
     
-    # Calculate energy statistic
-    term1 = np.mean(d_xy)
-    term2 = 0.5 * np.mean(d_xx)
-    term3 = 0.5 * np.mean(d_yy)
+    # Adjust terms to match R's calculation
+    term1 = 2 * d_xy
+    term2 = d_xx 
+    term3 = d_yy
     
-    result = term1 - term2 - term3
-    return result / 2  # Divide by 2 to match R's energy::edist behavior
+    return (term1 - term2 - term3) * n_x * n_y / (n_x + n_y)
 
 
 def MRS(o_c, m_c, m_p, o_c_chol=None, o_p_chol=None, m_c_chol=None, m_p_chol=None):
