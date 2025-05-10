@@ -205,7 +205,7 @@ for plot_var_idx, plot_var_name in enumerate(variable_names):
 
 # Generate rotation matrices for MBCn (same across all grid points)
 n_iter_mbcn = 30  # Match MBCn's default iter parameter
-rot_matrices_mbcn = [rot.random(n_vars) for _ in range(n_iter_mbcn)]
+rot_matrices_mbcn = [rot_random(n_vars) for _ in range(n_iter_mbcn)]
 
 # --- Multivariate Bias Corrections ---
 print("\nRunning MBCp...")
