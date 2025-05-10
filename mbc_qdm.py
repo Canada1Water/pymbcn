@@ -697,7 +697,7 @@ def MBCn(o_c, m_c, m_p, iter=30, ratio_seq=None, trace=0.05,
     # For consistent escore calculation if n_escore is used
     escore_cases_o_c, escore_cases_m_c = None, None
     current_n_escore = 0
-    if n_escore > 0:
+    if n_escore is not None and n_escore > 0:
         current_n_escore = min(o_c_arr.shape[0], m_c_arr.shape[0], n_escore)
         if current_n_escore > 0:
             # Use the same approach as R to select indices
@@ -706,6 +706,10 @@ def MBCn(o_c, m_c, m_p, iter=30, ratio_seq=None, trace=0.05,
             escore_iter_values[0] = escore(o_c_arr[escore_cases_o_c], m_c_arr[escore_cases_m_c], scale_x=True)
             if not silent: print(f"RAW {escore_iter_values[0]:.6g} : ", end='')
         else: escore_iter_values[0] = np.nan
+    else:
+        # Use all data points if n_escore is None or 0
+        escore_cases_o_c = np.arange(o_c_arr.shape[0])
+        escore_cases_m_c = np.arange(m_c_arr.shape[0])
 
     # Initial QDM mapping (applied once to original m_c, m_p)
     # These are m_c_qmap and m_p_qmap in R
