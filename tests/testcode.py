@@ -366,71 +366,68 @@ def plot_r_style_correlations(obs_ref_c, obs_ref_p, qdm_c_data, qdm_p_data, mbc_
 
 # Helper functions for seaborn pairplot
 def lower_scatter_smooth(x, y, **kwargs):
-    color = kwargs.pop('color', 'black') # Default to black if not provided by pairplot
-    alpha_scatter = kwargs.pop('alpha_scatter', 0.3) # Alpha for scatter points
-    sns.scatterplot(x=x, y=y, color=color, alpha=alpha_scatter, s=5, **kwargs)
-    # Add LOESS line (lowess=True in regplot)
-    # Ensure regplot gets a color that stands out, e.g., red
-    sns.regplot(x=x, y=y, lowess=True, scatter=False, color='red', line_kws={'linewidth': 1})
+    color = kwargs.pop('color', 'black')
+    alpha_scatter = kwargs.pop('alpha_scatter', 0.3)
+    s = kwargs.pop('s', 5)  # Smaller default point size
+    sns.scatterplot(x=x, y=y, color=color, alpha=alpha_scatter, s=s, **kwargs)
+    # Only add LOESS if explicitly requested
+    if kwargs.pop('smooth', False):
+        sns.regplot(x=x, y=y, lowess=True, scatter=False, color='red', 
+                   line_kws={'linewidth': 1}, lowess_kws={'frac': 0.3})
 
-def plot_pairs(data, title, var_names_list, diagonal='hist', color_hex='#0000001A'):
+def plot_pairs(data, title, var_names_list, diagonal='hist', color_hex='#0000001A', 
+               smooth=False, dpi=100, max_vars=5):
+    """Optimized pair plot function with options to:
+    - Disable smoothing (smooth=False)
+    - Reduce resolution (dpi=100)
+    - Limit number of variables (max_vars=5)
+    """
     if not np.all(np.isfinite(data)):
-        fig, ax = plt.subplots(); ax.text(0.5, 0.5, "Pair plot skipped (non-finite data)", ha='center', va='center')
-        plt.savefig(f"{title.replace(' ', '_').lower()}_pairs_skipped.png"); plt.close()
+        fig, ax = plt.subplots(figsize=(4,4))
+        ax.text(0.5, 0.5, "Pair plot skipped\n(non-finite data)", 
+                ha='center', va='center')
+        plt.savefig(f"{title.replace(' ', '_').lower()}_pairs_skipped.png", 
+                   dpi=dpi, bbox_inches='tight')
+        plt.close()
         return
 
     df = pd.DataFrame(data, columns=var_names_list)
     if df.empty:
-        fig, ax = plt.subplots(); ax.text(0.5, 0.5, "Pair plot skipped (empty data)", ha='center', va='center')
-        plt.savefig(f"{title.replace(' ', '_').lower()}_pairs_empty.png"); plt.close()
+        fig, ax = plt.subplots(figsize=(4,4))
+        ax.text(0.5, 0.5, "Pair plot skipped\n(empty data)", 
+                ha='center', va='center')
+        plt.savefig(f"{title.replace(' ', '_').lower()}_pairs_empty.png",
+                   dpi=dpi, bbox_inches='tight')
+        plt.close()
         return
 
-    # Extract base color for seaborn, alpha is handled by scatterplot/histplot
+    # Limit number of variables if too many
+    if len(var_names_list) > max_vars:
+        var_names_list = var_names_list[:max_vars]
+        df = df[var_names_list]
+
     base_color = color_hex[:-2] if len(color_hex) == 9 and color_hex[0] == '#' else color_hex
     alpha_val = float(int(color_hex[-2:], 16))/255.0 if len(color_hex) == 9 else 0.5
 
-    g = sns.PairGrid(df, diag_sharey=False) # diag_sharey=False is important for different scales
+    # Use smaller figure size for many variables
+    figsize = min(8, 2 * len(var_names_list))
+    g = sns.PairGrid(df, diag_sharey=False, height=figsize/len(var_names_list))
     
-    # Diagonal: Histograms
+    # Diagonal plots
     if diagonal == 'hist':
-        g.map_diag(plt.hist, bins=20, color=base_color, alpha=alpha_val, edgecolor=base_color) # Pass alpha here
+        g.map_diag(plt.hist, bins=15, color=base_color, alpha=alpha_val)
     elif diagonal == 'kde':
-        g.map_diag(sns.kdeplot, color=base_color, fill=True, alpha=alpha_val) # Pass alpha here
+        g.map_diag(sns.kdeplot, color=base_color, fill=True, alpha=alpha_val)
 
-    # Lower triangle: Scatter plot with LOESS smooth
-    g.map_lower(lower_scatter_smooth, color=base_color, alpha_scatter=alpha_val) # Pass base_color and alpha
-
-    # Upper triangle: Mirror lower triangle
-    g.map_upper(lower_scatter_smooth, color=base_color, alpha_scatter=alpha_val) # Pass base_color and alpha
+    # Off-diagonal plots - only lower triangle to save time
+    g.map_lower(lower_scatter_smooth, color=base_color, alpha_scatter=alpha_val,
+               s=3, smooth=smooth)  # Smaller points
     
-    g.fig.suptitle(title, y=1.02) # Adjust y for suptitle to avoid overlap
-
-    # Increase axis font sizes
-    tick_labelsize = 10  # Adjusted font size for tick labels
-    axis_labelsize = 12  # Adjusted font size for axis labels
-    num_rows, num_cols = g.axes.shape
-
-    for r_idx, ax_row in enumerate(g.axes):
-        for c_idx, ax in enumerate(ax_row):
-            if ax is not None:
-                ax.tick_params(axis='both', which='major', labelsize=tick_labelsize)
-                
-                # Only set labels for the outer plots
-                current_xlabel = df.columns[c_idx] # Get variable name for x-axis
-                current_ylabel = df.columns[r_idx] # Get variable name for y-axis
-
-                if r_idx == num_rows - 1: # Last row
-                    ax.set_xlabel(current_xlabel, fontsize=axis_labelsize)
-                else:
-                    ax.set_xlabel('') # Clear inner x-labels
-                
-                if c_idx == 0: # First column
-                    ax.set_ylabel(current_ylabel, fontsize=axis_labelsize)
-                else:
-                    ax.set_ylabel('') # Clear inner y-labels
+    g.fig.suptitle(title, y=1.02)
     
     try:
-        plt.savefig(f"{title.replace(' ', '_').lower()}_pairs.png")
+        plt.savefig(f"{title.replace(' ', '_').lower()}_pairs.png",
+                   dpi=dpi, bbox_inches='tight')
     except Exception as e:
         print(f"Error saving pairplot for {title}: {e}")
     finally:
@@ -448,12 +445,19 @@ plot_r_style_correlations(rcm_c_data, rcm_p_data, qdm_c, qdm_p, mbcn_c, mbcn_p, 
 
 
 # Pairwise scatterplots (R colors: #0000001A, #FF00001A, #0000FF1A, #FFA5001A)
-plot_pairs(gcm_c_data, 'CanESM2 calibration', variable_names, color_hex='#0000003A') # Darker alpha for visibility
-plot_pairs(rcm_c_data, 'CanRCM4 calibration', variable_names, color_hex='#0000003A')
-plot_pairs(qdm_c,      'QDM calibration',     variable_names, color_hex='#0000003A', diagonal='hist') # Changed diagonal to hist
-plot_pairs(mbcp_c,     'MBCp calibration',    variable_names, color_hex='#FF00003A', diagonal='hist') # MBCp often results in spiky KDEs
-plot_pairs(mbcr_c,     'MBCr calibration',    variable_names, color_hex='#0000FF3A', diagonal='hist') # MBCr uses ranks, hist is better
-plot_pairs(mbcn_c,     'MBCn calibration',    variable_names, color_hex='#FFA5003A', diagonal='hist') # MBCn can also be spiky
+# Only plot first 5 variables and disable smoothing for speed
+plot_pairs(gcm_c_data, 'CanESM2 calibration', variable_names, 
+          color_hex='#0000003A', smooth=False, max_vars=5)
+plot_pairs(rcm_c_data, 'CanRCM4 calibration', variable_names, 
+          color_hex='#0000003A', smooth=False, max_vars=5)
+plot_pairs(qdm_c, 'QDM calibration', variable_names, 
+          color_hex='#0000003A', diagonal='hist', smooth=False, max_vars=5)
+plot_pairs(mbcp_c, 'MBCp calibration', variable_names, 
+          color_hex='#FF00003A', diagonal='hist', smooth=False, max_vars=5)
+plot_pairs(mbcr_c, 'MBCr calibration', variable_names, 
+          color_hex='#0000FF3A', diagonal='hist', smooth=False, max_vars=5)
+plot_pairs(mbcn_c, 'MBCn calibration', variable_names, 
+          color_hex='#FFA5003A', diagonal='hist', smooth=False, max_vars=5)
 
 print("Plots saved.")
 
