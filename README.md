@@ -64,6 +64,12 @@ mbcn_p = fit_mbcn['mhat_p']
 
 See MBC_R/MBC.pdf
 
+## TODO
+
+Implement xarray apply_ufunc example
+
+Improve performance with pytorch or jax
+
 ## References
 
 Cannon, A.J., 2018. Multivariate quantile mapping bias correction: An N-dimensional probability density function transform for climate model simulations of multiple variables. Climate Dynamics, 50(1-2):31-49. doi:10.1007/s00382-017-3580-6
