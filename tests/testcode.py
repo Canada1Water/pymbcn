@@ -369,11 +369,24 @@ def lower_scatter_smooth(x, y, **kwargs):
     color = kwargs.pop('color', 'black')
     alpha_scatter = kwargs.pop('alpha_scatter', 0.3)
     s = kwargs.pop('s', 5)  # Smaller default point size
-    sns.scatterplot(x=x, y=y, color=color, alpha=alpha_scatter, s=s, **kwargs)
+    smooth = kwargs.pop('smooth', False)
+    
+    # Only pass valid scatterplot kwargs
+    scatter_kws = {k: v for k, v in kwargs.items() 
+                  if k in ['label', 'marker', 'style', 'size']}
+    
+    sns.scatterplot(x=x, y=y, color=color, alpha=alpha_scatter, s=s, **scatter_kws)
+    
     # Only add LOESS if explicitly requested
-    if kwargs.pop('smooth', False):
-        sns.regplot(x=x, y=y, lowess=True, scatter=False, color='red', 
-                   line_kws={'linewidth': 1}, lowess_kws={'frac': 0.3})
+    if smooth:
+        reg_kws = {k: v for k, v in kwargs.items()
+                  if k in ['line_kws', 'lowess_kws']}
+        if 'line_kws' not in reg_kws:
+            reg_kws['line_kws'] = {'linewidth': 1}
+        if 'lowess_kws' not in reg_kws:
+            reg_kws['lowess_kws'] = {'frac': 0.3}
+            
+        sns.regplot(x=x, y=y, lowess=True, scatter=False, color='red', **reg_kws)
 
 def plot_pairs(data, title, var_names_list, diagonal='hist', color_hex='#0000001A', 
                smooth=False, dpi=100, max_vars=5):
