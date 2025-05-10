@@ -1,0 +1,7 @@
+numpy>=1.21.0
+xarray>=0.20.0
+netCDF4>=1.5.8
+scipy>=1.7.0
+matplotlib>=3.4.0
+jax>=0.3.0
+jaxlib>=0.3.0
