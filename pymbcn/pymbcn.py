@@ -291,8 +291,21 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
             
     return {'mhat_c': mhat_c, 'mhat_p': mhat_p}
 
-def escore(x, y, scale_x=False, n_cases=None, alpha=1, method="cluster"):
-    """Energy score matching R's energy::edist implementation"""
+def escore(x, y, scale_x=False, n_cases=None, alpha=1, method="cluster", 
+           progress=False, timeout=None):
+    """Energy score matching R's energy::edist implementation
+    Args:
+        x, y: Input arrays
+        scale_x: Whether to scale inputs
+        n_cases: Number of cases to sample (None for all)
+        alpha: Power for distance metric (1 for L1 norm)
+        method: "cluster" for pairwise distances, "fast" for approximate
+        progress: Show progress bar if True
+        timeout: Maximum time in seconds before aborting (None for no timeout)
+    """
+    import time
+    start_time = time.time()
+    
     x_arr = np.asarray(x)
     y_arr = np.asarray(y)
 
@@ -320,24 +333,70 @@ def escore(x, y, scale_x=False, n_cases=None, alpha=1, method="cluster"):
             x_arr = x_arr[x_indices]
             y_arr = y_arr[y_indices]
             n_x = n_y = n_cases
-    
-    # Calculate distances directly without full matrix
-    # This matches R's energy::edist implementation better
-    d_xy = np.mean([np.linalg.norm(x_arr[i] - y_arr[j]) 
-                   for i in range(n_x) for j in range(n_y)])
-    
-    d_xx = np.mean([np.linalg.norm(x_arr[i] - x_arr[j]) 
-                   for i in range(n_x) for j in range(i+1, n_x)])
-    
-    d_yy = np.mean([np.linalg.norm(y_arr[i] - y_arr[j]) 
-                   for i in range(n_y) for j in range(i+1, n_y)])
-    
-    # Adjust terms to match R's calculation
-    term1 = 2 * d_xy
-    term2 = d_xx 
-    term3 = d_yy
-    
-    return (term1 - term2 - term3) * n_x * n_y / (n_x + n_y)
+
+    # Vectorized distance calculations
+    def check_timeout():
+        if timeout and (time.time() - start_time) > timeout:
+            raise TimeoutError(f"escore calculation timed out after {timeout} seconds")
+
+    try:
+        if method == "fast":
+            # Faster approximate method using random sampling
+            sample_size = min(1000, n_x, n_y)
+            x_sample = x_arr[np.random.choice(n_x, sample_size, replace=False)]
+            y_sample = y_arr[np.random.choice(n_y, sample_size, replace=False)]
+            
+            d_xy = np.mean(np.linalg.norm(x_sample[:, None] - y_sample, axis=2))
+            d_xx = np.mean(np.linalg.norm(x_sample[:, None] - x_sample, axis=2))
+            d_yy = np.mean(np.linalg.norm(y_sample[:, None] - y_sample, axis=2))
+        else:
+            # Original pairwise method with progress indication
+            if progress:
+                from tqdm import tqdm
+                pbar = tqdm(total=n_x*n_y + (n_x*(n_x-1))//2 + (n_y*(n_y-1))//2,
+                           desc="Calculating energy score")
+
+            # Calculate xy distances
+            d_xy = 0
+            for i in range(n_x):
+                check_timeout()
+                if progress: pbar.update(n_y)
+                d_xy += np.sum(np.linalg.norm(x_arr[i] - y_arr, axis=1))
+            d_xy /= (n_x * n_y)
+
+            # Calculate xx distances
+            d_xx = 0
+            for i in range(n_x):
+                check_timeout()
+                remaining = n_x - i - 1
+                if remaining > 0 and progress: pbar.update(remaining)
+                d_xx += np.sum(np.linalg.norm(x_arr[i] - x_arr[i+1:], axis=1))
+            d_xx = 2 * d_xx / (n_x * (n_x - 1)) if n_x > 1 else 0
+
+            # Calculate yy distances
+            d_yy = 0
+            for i in range(n_y):
+                check_timeout()
+                remaining = n_y - i - 1
+                if remaining > 0 and progress: pbar.update(remaining)
+                d_yy += np.sum(np.linalg.norm(y_arr[i] - y_arr[i+1:], axis=1))
+            d_yy = 2 * d_yy / (n_y * (n_y - 1)) if n_y > 1 else 0
+
+            if progress: pbar.close()
+
+        # Adjust terms to match R's calculation
+        term1 = 2 * d_xy
+        term2 = d_xx 
+        term3 = d_yy
+        
+        return (term1 - term2 - term3) * n_x * n_y / (n_x + n_y)
+
+    except KeyboardInterrupt:
+        if progress: print("\nEnergy score calculation interrupted")
+        return np.nan
+    except TimeoutError as e:
+        if progress: print(f"\n{e}")
+        return np.nan
 
 
 def MRS(o_c, m_c, m_p, o_c_chol=None, o_p_chol=None, m_c_chol=None, m_p_chol=None):

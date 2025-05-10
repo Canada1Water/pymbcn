@@ -471,11 +471,16 @@ print("\nCalculating Energy Scores (using RCM projection as reference)...")
 def ensure_2d(arr):
     return arr if arr.ndim == 2 else arr.reshape(-1, 1)
 
-# Calculate energy scores using all data points to match R behavior
-escore_qdm_p = escore(ensure_2d(rcm_p_data), ensure_2d(qdm_p), scale_x=True)
-escore_mbcp_p = escore(ensure_2d(rcm_p_data), ensure_2d(mbcp_p), scale_x=True)
-escore_mbcr_p = escore(ensure_2d(rcm_p_data), ensure_2d(mbcr_p), scale_x=True)
-escore_mbcn_p = escore(ensure_2d(rcm_p_data), ensure_2d(mbcn_p), scale_x=True)
+# Calculate energy scores with progress and timeout
+print("\nCalculating energy scores (this may take a while)...")
+escore_qdm_p = escore(ensure_2d(rcm_p_data), ensure_2d(qdm_p), 
+                     scale_x=True, progress=True, timeout=60)
+escore_mbcp_p = escore(ensure_2d(rcm_p_data), ensure_2d(mbcp_p), 
+                      scale_x=True, progress=True, timeout=60)
+escore_mbcr_p = escore(ensure_2d(rcm_p_data), ensure_2d(mbcr_p), 
+                      scale_x=True, progress=True, timeout=60) 
+escore_mbcn_p = escore(ensure_2d(rcm_p_data), ensure_2d(mbcn_p), 
+                      scale_x=True, progress=True, timeout=60)
 
 print(f'\nRaw Escore QDM (vs RCM_P): {escore_qdm_p:.6f}') # R output has no label for this
 # R: cat('ESS (MBCp):', 1 - escore.mbcp / escore.qdm, '\n')
