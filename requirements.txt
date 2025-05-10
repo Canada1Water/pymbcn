@@ -6,4 +6,4 @@ matplotlib>=3.3.0
 seaborn>=0.11.0                                                                                                                
 netCDF4>=1.5.8                                                                                                                 
 statsmodels>=0.12.0                                                                                                            
-
+tqdm
