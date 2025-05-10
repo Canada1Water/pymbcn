@@ -402,18 +402,24 @@ def plot_pairs(data, title, var_names_list, diagonal='hist', color_hex='#0000001
     # Increase axis font sizes
     tick_labelsize = 10  # Adjusted font size for tick labels
     axis_labelsize = 12  # Adjusted font size for axis labels
-    for ax_row in g.axes:
-        for ax_col_idx, ax in enumerate(ax_row):
+    num_rows, num_cols = g.axes.shape
+
+    for r_idx, ax_row in enumerate(g.axes):
+        for c_idx, ax in enumerate(ax_row):
             if ax is not None:
                 ax.tick_params(axis='both', which='major', labelsize=tick_labelsize)
-                # Only set labels for the outer plots to avoid clutter, similar to default pairplot
-                if ax.is_last_row():
-                    ax.set_xlabel(ax.get_xlabel(), fontsize=axis_labelsize)
+                
+                # Only set labels for the outer plots
+                current_xlabel = df.columns[c_idx] # Get variable name for x-axis
+                current_ylabel = df.columns[r_idx] # Get variable name for y-axis
+
+                if r_idx == num_rows - 1: # Last row
+                    ax.set_xlabel(current_xlabel, fontsize=axis_labelsize)
                 else:
                     ax.set_xlabel('') # Clear inner x-labels
                 
-                if ax.is_first_col():
-                    ax.set_ylabel(ax.get_ylabel(), fontsize=axis_labelsize)
+                if c_idx == 0: # First column
+                    ax.set_ylabel(current_ylabel, fontsize=axis_labelsize)
                 else:
                     ax.set_ylabel('') # Clear inner y-labels
     
