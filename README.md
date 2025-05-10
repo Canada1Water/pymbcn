@@ -68,6 +68,9 @@ See MBC_R/MBC.pdf
 
 Implement xarray apply_ufunc example
 
+Improve differences between R package and python package (e.g. Energy distance scores)
+To see results run tests/compare_outputs.py
+
 Improve performance with pytorch or jax
 
 ## References
