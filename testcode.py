@@ -235,7 +235,8 @@ fit_mbcn = MBCn(o_c=rcm_c_data, m_c=gcm_c_data, m_p=gcm_p_data,
                ties='first',    
                silent=False, n_escore=100, # Changed n_escore to 100
                pp_type='linear',
-               rot_seq=rot_matrices_mbcn) # Pass pre-generated rotation matrices
+               rot_seq=rot_matrices_mbcn, # Pass pre-generated rotation matrices
+               iter=n_iter_mbcn) # Pass number of iterations
 mbcn_c = fit_mbcn['mhat_c']
 mbcn_p = fit_mbcn['mhat_p']
 print("MBCn finished.\n")
