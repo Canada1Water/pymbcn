@@ -4,6 +4,7 @@ import pandas as pd
 from scipy.stats import spearmanr, pearsonr
 import netCDF4
 import seaborn as sns # Import seaborn
+import statsmodels.api as sm # Import statsmodels for lowess
 from mbc_qdm import QDM, MRS, escore, MBCr, MBCp, MBCn
 
 # --- Global Random Seed for Reproducibility ---
