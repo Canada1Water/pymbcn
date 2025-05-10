@@ -1,45 +1,38 @@
 """
-This code implements several multivariate bias correction methods. Here's a breakdown of the conversion process and the resulting Python code:
+Multivariate Bias Correction Methods (pymbcn)
 
-Conversion Strategy and Key Considerations:
+This module implements several multivariate bias correction techniques for climate model outputs,
+including Quantile Delta Mapping (QDM), Multivariate Bias Correction (MBC) methods, and Energy Score calculations.
 
-Libraries: I'll use the following Python libraries:
+The methods are based on statistical techniques to adjust climate model outputs to better match
+observational data while preserving the multivariate relationships between variables.
 
-numpy: For numerical operations, array manipulation, and linear algebra.
+Key Features:
+- QDM: Quantile Delta Mapping for univariate bias correction
+- MBCp: Multivariate bias correction preserving Pearson correlation
+- MBCr: Multivariate bias correction preserving Spearman correlation  
+- MBCn: N-dimensional probability density function transfer
+- R2D2: Rank resampling for dependence and distribution
+- Energy score calculations for evaluating corrections
 
-scipy: For interpolation (scipy.interpolate.interp1d), Cholesky decomposition (scipy.linalg.cholesky), and nearest positive definite matrix calculation.
+Dependencies:
+- numpy >= 1.20.0
+- scipy >= 1.7.0
+- scikit-learn >= 1.0.0
+- pandas >= 1.3.0 (optional, for some diagnostic functions)
 
-pandas: While not strictly necessary, pandas DataFrames can be helpful for handling tabular data (though I'll primarily stick with NumPy arrays for consistency with the R code's matrix-centric approach).
+Example Usage:
+    >>> from pymbcn import QDM, MBCn
+    >>> corrected = QDM(obs, model_c, model_p)
+    >>> mbcn_result = MBCn(obs, model_c, model_p)
 
-statsmodels: For plotting positions.
+Reference:
+    Based on methods described in:
+    - Cannon, A.J., 2018. Multivariate quantile mapping bias correction...
+    - Vrac, M., 2018. Multivariate bias adjustment of high-dimensional...
 
-sklearn: For scaling and nearest neighbors search.
-
-Function Mapping: I'll create Python functions that directly correspond to the R functions: QDM, escore, MRS, MBCr, MBCp, rot.random, MBCn, and R2D2.
-
-Core Logic: The core logic within each function will be translated as directly as possible, paying close attention to:
-
-Indexing: R uses 1-based indexing, while Python uses 0-based indexing. I'll adjust indices accordingly.
-
-Vectorized Operations: R excels at vectorized operations. I'll leverage NumPy's array operations to achieve similar efficiency in Python.
-
-Matrix Operations: I'll use NumPy's matrix multiplication (@), transpose (.T), and linear algebra functions.
-
-Approximation/Interpolation: R's approx function is analogous to scipy.interpolate.interp1d in Python. I'll use the kind='linear' option for direct correspondence and handle the rule=2 behavior (extrapolation) explicitly.
-
-Ranking: R's rank function with ties.method will be replicated using NumPy's argsort and careful handling of ties.
-
-Random Number Generation: I'll use numpy.random for generating random numbers, ensuring consistency with R's behavior where needed.
-
-NearPD: The nearPD function from R's Matrix package doesn't have a direct equivalent in SciPy. I'll implement a function to find the nearest positive definite matrix, based on Higham's (2002) algorithm, which is commonly used for this purpose.
-
-Energy Score: The energy package in R is translated using scipy and sklearn.
-
-Error Handling: I'll add basic checks for input data types and dimensions where appropriate.
-
-Docstrings: I will add docstrings to the functions.
-
-Python Code:
+License:
+    MIT License - See LICENSE file for details.
 """
 import numpy as np
 import scipy.stats as stats
