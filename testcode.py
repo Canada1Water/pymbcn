@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.stats import spearmanr, pearsonr
+from scipy.stats import spearmanr # Removed pearsonr
 import netCDF4
 import seaborn as sns # Import seaborn
 import statsmodels.api as sm # Import statsmodels for lowess
@@ -367,25 +367,6 @@ def lower_scatter_smooth(x, y, **kwargs):
     # Ensure regplot gets a color that stands out, e.g., red
     sns.regplot(x=x, y=y, lowess=True, scatter=False, color='red', line_kws={'linewidth': 1})
 
-def upper_corr(x, y, **kwargs):
-    color = kwargs.pop('color', 'black') # Not used for text, but good to pop
-    if not x.empty and not y.empty:
-        # Drop NaNs for correlation calculation
-        valid_indices = ~ (np.isnan(x) | np.isnan(y))
-        x_valid = x[valid_indices]
-        y_valid = y[valid_indices]
-        if len(x_valid) > 1 and len(y_valid) > 1: # Need at least 2 points for correlation
-            r, _ = pearsonr(x_valid, y_valid)
-            ax = plt.gca()
-            # Adjust text size based on correlation magnitude for better visibility
-            text_cex = 0.8 + 1.2 * abs(r) # Scale font size
-            ax.text(0.5, 0.5, f'{r:.2f}', horizontalalignment='center', verticalalignment='center', 
-                    fontsize=10 * text_cex, transform=ax.transAxes) # Base fontsize 10
-        else:
-            ax = plt.gca()
-            ax.text(0.5, 0.5, 'NA', horizontalalignment='center', verticalalignment='center', fontsize=10, transform=ax.transAxes)
-
-
 def plot_pairs(data, title, var_names_list, diagonal='hist', color_hex='#0000001A'):
     if not np.all(np.isfinite(data)):
         fig, ax = plt.subplots(); ax.text(0.5, 0.5, "Pair plot skipped (non-finite data)", ha='center', va='center')
@@ -413,10 +394,28 @@ def plot_pairs(data, title, var_names_list, diagonal='hist', color_hex='#0000001
     # Lower triangle: Scatter plot with LOESS smooth
     g.map_lower(lower_scatter_smooth, color=base_color, alpha_scatter=alpha_val) # Pass base_color and alpha
 
-    # Upper triangle: Pearson correlation coefficient
-    g.map_upper(upper_corr)
+    # Upper triangle: Mirror lower triangle
+    g.map_upper(lower_scatter_smooth, color=base_color, alpha_scatter=alpha_val) # Pass base_color and alpha
     
     g.fig.suptitle(title, y=1.02) # Adjust y for suptitle to avoid overlap
+
+    # Increase axis font sizes
+    tick_labelsize = 10  # Adjusted font size for tick labels
+    axis_labelsize = 12  # Adjusted font size for axis labels
+    for ax_row in g.axes:
+        for ax_col_idx, ax in enumerate(ax_row):
+            if ax is not None:
+                ax.tick_params(axis='both', which='major', labelsize=tick_labelsize)
+                # Only set labels for the outer plots to avoid clutter, similar to default pairplot
+                if ax.is_last_row():
+                    ax.set_xlabel(ax.get_xlabel(), fontsize=axis_labelsize)
+                else:
+                    ax.set_xlabel('') # Clear inner x-labels
+                
+                if ax.is_first_col():
+                    ax.set_ylabel(ax.get_ylabel(), fontsize=axis_labelsize)
+                else:
+                    ax.set_ylabel('') # Clear inner y-labels
     
     try:
         plt.savefig(f"{title.replace(' ', '_').lower()}_pairs.png")
