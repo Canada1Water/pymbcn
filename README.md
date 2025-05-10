@@ -44,12 +44,24 @@ model_fut = np.random.normal(size=(100, 3))
 qdm_result = QDM(obs, model_hist, model_fut)
 
 # Apply MBCn
-mbcn_result = MBCn(obs, model_hist, model_fut)
+# Generate rotation matrices for MBCn (same across all grid points)
+n_iter_mbcn = 30  # Match MBCn's default iter parameter
+rot_matrices_mbcn = [rot_random(n_vars) for _ in range(n_iter_mbcn)]
+fit_mbcn = MBCn(o_c=obs, m_c=model_hist, m_p=model_fut,
+               ratio_seq=py_ratio_seq, trace=py_trace_val,
+               jitter_factor=0, 
+               ties='first',    
+               silent=False, n_escore=100,
+               pp_type='linear',
+               rot_seq=rot_matrices_mbcn,
+               iter=n_iter_mbcn)
+mbcn_c = fit_mbcn['mhat_c']
+mbcn_p = fit_mbcn['mhat_p']
+
 ```
 
 ## Documentation
 
-Full documentation is available at [GitHub Wiki](https://github.com/yourusername/pymbcn/wiki).
 
 ## References
 
