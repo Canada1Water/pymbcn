@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Python implementation of multivariate bias correction techniques for climate model outputs, including:
+Python implementation of multivariate bias correction (npdf) technique for climate model outputs. This is a machine translation of the R package by Alex J. Cannon: https://cran.r-project.org/web/packages/MBC/index.html to python.
 
 - Quantile Delta Mapping (QDM)
 - Multivariate Bias Correction (MBC) methods:
