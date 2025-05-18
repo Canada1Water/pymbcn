@@ -38,9 +38,9 @@ def load_netcdf_data(nc_file_path):
         rcm_c = np.column_stack([nc.variables[f'rcm_c_{var}'][:] for var in var_names])
         gcm_p = np.column_stack([nc.variables[f'gcm_p_{var}'][:] for var in var_names])
         
-        # Get metadata
-        ratio_seq = np.array([nc.variables['ratio_seq'][i] for i, var in enumerate(var_names)]).astype(bool)
-        trace = np.array([nc.variables['trace'][i] for i, var in enumerate(var_names)])
+        # Get metadata and handle masked values
+        ratio_seq = np.ma.filled(nc.variables['ratio_seq'][:], False).astype(bool)
+        trace = np.ma.filled(nc.variables['trace'][:], np.nan)
         
     return {
         'gcm_c': gcm_c,
@@ -65,6 +65,7 @@ def run_mbc_methods(data):
     # Convert parameters to R format
     ratio_seq_r = ro.BoolVector(data['ratio_seq'])
     trace_r = ro.FloatVector(data['trace'])
+    trace_calc_r = ro.FloatVector(data['trace'] * 0.5)  # Pre-calculate trace_calc
     
     # Run MBC methods
     results = {}
@@ -76,7 +77,7 @@ def run_mbc_methods(data):
         m_p=gcm_p,
         ratio=ratio_seq_r,
         trace=trace_r,
-        trace_calc=trace_r*0.5,
+        trace_calc=trace_calc_r,
         jitter_factor=0,
         ties="first"
     )
