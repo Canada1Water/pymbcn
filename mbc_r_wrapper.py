@@ -70,20 +70,28 @@ def run_mbc_methods(data):
     # Run MBC methods
     results = {}
     
-    print("\nRunning QDM...")
-    qdm = mbc.QDM(
-        o_c=rcm_c,
-        m_c=gcm_c,
-        m_p=gcm_p,
-        ratio=ratio_seq_r,
-        trace=trace_r,
-        trace_calc=trace_calc_r,
-        jitter_factor=0,
-        ties="first"
-    )
+    print("\nRunning QDM for each variable...")
+    qdm_c = np.zeros_like(data['gcm_c'])
+    qdm_p = np.zeros_like(data['gcm_p'])
+    
+    for i in range(len(data['var_names'])):
+        print(f"  Variable {i+1}/{len(data['var_names'])}: {data['var_names'][i]}")
+        qdm = mbc.QDM(
+            o_c=rcm_c.rx(True, i+1),  # R uses 1-based indexing
+            m_c=gcm_c.rx(True, i+1),
+            m_p=gcm_p.rx(True, i+1),
+            ratio=ratio_seq_r[i],
+            trace=trace_r[i],
+            trace_calc=trace_calc_r[i],
+            jitter_factor=0,
+            ties="first"
+        )
+        qdm_c[:, i] = np.array(qdm.rx2('mhat_c'))
+        qdm_p[:, i] = np.array(qdm.rx2('mhat_p'))
+    
     results['qdm'] = {
-        'mhat_c': np.array(qdm.rx2('mhat_c')),
-        'mhat_p': np.array(qdm.rx2('mhat_p'))
+        'mhat_c': qdm_c,
+        'mhat_p': qdm_p
     }
     
     print("\nRunning MBCp...")
