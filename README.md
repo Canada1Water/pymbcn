@@ -72,7 +72,7 @@ Improve differences between R package and python package (also energy distance s
 
 To see R vs Python results, run tests/compare_outputs.py (QDM is good, MBCn needs improvement compared with R code possibly)
 
-Improve performance with pytorch or jax
+Improve performance with pytorch or jax (there is a jax.py file that is not used , but demonstrates a possible implementation)
 
 ## References
 
