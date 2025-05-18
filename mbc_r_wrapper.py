@@ -1,0 +1,197 @@
+import os
+import numpy as np
+import netCDF4
+import rpy2.robjects as ro
+from rpy2.robjects.packages import importr
+from rpy2.robjects import numpy2ri
+import subprocess
+import sys
+
+# Initialize R interface
+numpy2ri.activate()
+base = importr('base')
+utils = importr('utils')
+
+def install_r_packages():
+    """Install required R packages"""
+    print("Checking/installing R packages...")
+    if not ro.packages.isinstalled('MBC'):
+        utils.install_packages('MBC')
+    if not ro.packages.isinstalled('Matrix'):
+        utils.install_packages('Matrix')
+    if not ro.packages.isinstalled('energy'):
+        utils.install_packages('energy')
+    if not ro.packages.isinstalled('FNN'):
+        utils.install_packages('FNN')
+
+def load_netcdf_data(nc_file_path):
+    """Load data from NetCDF file into numpy arrays"""
+    print(f"Loading data from {nc_file_path}...")
+    with netCDF4.Dataset(nc_file_path) as nc:
+        # Get variable names (assuming standard CCCMA format)
+        var_names = [v.split('_')[-1] for v in nc.variables 
+                    if v.startswith('gcm_c_') or v.startswith('rcm_c_')]
+        var_names = sorted(list(set(var_names)))  # Get unique sorted vars
+        
+        # Load data into arrays
+        gcm_c = np.column_stack([nc.variables[f'gcm_c_{var}'][:] for var in var_names])
+        rcm_c = np.column_stack([nc.variables[f'rcm_c_{var}'][:] for var in var_names])
+        gcm_p = np.column_stack([nc.variables[f'gcm_p_{var}'][:] for var in var_names])
+        
+        # Get metadata
+        ratio_seq = np.array([nc.variables['ratio_seq'][i] for i, var in enumerate(var_names)]).astype(bool)
+        trace = np.array([nc.variables['trace'][i] for i, var in enumerate(var_names)])
+        
+    return {
+        'gcm_c': gcm_c,
+        'rcm_c': rcm_c,
+        'gcm_p': gcm_p,
+        'var_names': var_names,
+        'ratio_seq': ratio_seq,
+        'trace': trace
+    }
+
+def run_mbc_methods(data):
+    """Run MBC methods using rpy2 interface"""
+    print("Running MBC methods through R...")
+    mbc = importr('MBC')
+    r = ro.r
+    
+    # Convert numpy arrays to R matrices
+    gcm_c = r.matrix(data['gcm_c'], nrow=data['gcm_c'].shape[0], ncol=data['gcm_c'].shape[1])
+    rcm_c = r.matrix(data['rcm_c'], nrow=data['rcm_c'].shape[0], ncol=data['rcm_c'].shape[1])
+    gcm_p = r.matrix(data['gcm_p'], nrow=data['gcm_p'].shape[0], ncol=data['gcm_p'].shape[1])
+    
+    # Convert parameters to R format
+    ratio_seq_r = ro.BoolVector(data['ratio_seq'])
+    trace_r = ro.FloatVector(data['trace'])
+    
+    # Run MBC methods
+    results = {}
+    
+    print("\nRunning QDM...")
+    qdm = mbc.QDM(
+        o_c=rcm_c,
+        m_c=gcm_c,
+        m_p=gcm_p,
+        ratio=ratio_seq_r,
+        trace=trace_r,
+        trace_calc=trace_r*0.5,
+        jitter_factor=0,
+        ties="first"
+    )
+    results['qdm'] = {
+        'mhat_c': np.array(qdm.rx2('mhat_c')),
+        'mhat_p': np.array(qdm.rx2('mhat_p'))
+    }
+    
+    print("\nRunning MBCp...")
+    mbcp = mbc.MBCp(
+        o_c=rcm_c,
+        m_c=gcm_c,
+        m_p=gcm_p,
+        ratio_seq=ratio_seq_r,
+        trace=trace_r,
+        jitter_factor=0,
+        ties="first",
+        silent=False
+    )
+    results['mbcp'] = {
+        'mhat_c': np.array(mbcp.rx2('mhat_c')),
+        'mhat_p': np.array(mbcp.rx2('mhat_p'))
+    }
+    
+    print("\nRunning MBCr...")
+    mbcr = mbc.MBCr(
+        o_c=rcm_c,
+        m_c=gcm_c,
+        m_p=gcm_p,
+        ratio_seq=ratio_seq_r,
+        trace=trace_r,
+        jitter_factor=0,
+        ties="first",
+        silent=False
+    )
+    results['mbcr'] = {
+        'mhat_c': np.array(mbcr.rx2('mhat_c')),
+        'mhat_p': np.array(mbcr.rx2('mhat_p'))
+    }
+    
+    print("\nRunning MBCn...")
+    mbcn = mbc.MBCn(
+        o_c=rcm_c,
+        m_c=gcm_c,
+        m_p=gcm_p,
+        ratio_seq=ratio_seq_r,
+        trace=trace_r,
+        jitter_factor=0,
+        ties="first",
+        silent=False,
+        n_escore=100
+    )
+    results['mbcn'] = {
+        'mhat_c': np.array(mbcn.rx2('mhat_c')),
+        'mhat_p': np.array(mbcn.rx2('mhat_p')),
+        'escore_iter': dict(zip(
+            mbcn.names,
+            [np.array(x) if hasattr(x, '__len__') else x for x in mbcn]
+        ))
+    }
+    
+    return results
+
+def save_results_to_netcdf(results, var_names, output_file):
+    """Save results to NetCDF file"""
+    print(f"\nSaving results to {output_file}...")
+    with netCDF4.Dataset(output_file, 'w') as nc:
+        # Create dimensions
+        nc.createDimension('time_c', results['qdm']['mhat_c'].shape[0])
+        nc.createDimension('time_p', results['qdm']['mhat_p'].shape[0])
+        
+        # Save variables for each method
+        for method in ['qdm', 'mbcp', 'mbcr', 'mbcn']:
+            for i, var in enumerate(var_names):
+                # Control period
+                nc_var_c = nc.createVariable(
+                    f"{method}_{var}_c", 'f4', ('time_c',))
+                nc_var_c[:] = results[method]['mhat_c'][:, i]
+                
+                # Projection period
+                nc_var_p = nc.createVariable(
+                    f"{method}_{var}_p", 'f4', ('time_p',))
+                nc_var_p[:] = results[method]['mhat_p'][:, i]
+        
+        # Save energy scores if available
+        if 'escore_iter' in results['mbcn']:
+            for k, v in results['mbcn']['escore_iter'].items():
+                if isinstance(v, (int, float)):
+                    nc.setncattr(f"mbcn_escore_{k}", v)
+
+def run_comparison():
+    """Run the comparison script"""
+    print("\nRunning comparison between R and Python results...")
+    try:
+        subprocess.run([sys.executable, "tests/compare_outputs.py"], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error running comparison: {e}")
+
+def main():
+    # Setup R environment
+    install_r_packages()
+    
+    # Load data
+    nc_file = 'MBC_R/data/cccma_output.nc'
+    data = load_netcdf_data(nc_file)
+    
+    # Run MBC methods through R
+    results = run_mbc_methods(data)
+    
+    # Save results
+    output_file = 'r_corrected_output.nc'
+    save_results_to_netcdf(results, data['var_names'], output_file)
+    
+    # Run comparison with Python results
+    run_comparison()
+
+if __name__ == '__main__':
+    main()
