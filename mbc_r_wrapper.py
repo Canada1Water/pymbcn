@@ -101,9 +101,9 @@ def run_mbc_methods(data):
     
     print("\nRunning MBCp...")
     mbcp = mbc.MBCp(
-        o_c=rcm_c,
-        m_c=gcm_c,
-        m_p=gcm_p,
+        o_c=rcm_c_r,
+        m_c=gcm_c_r,
+        m_p=gcm_p_r,
         ratio_seq=ratio_seq_r,
         trace=trace_r,
         jitter_factor=0,
@@ -117,9 +117,9 @@ def run_mbc_methods(data):
     
     print("\nRunning MBCr...")
     mbcr = mbc.MBCr(
-        o_c=rcm_c,
-        m_c=gcm_c,
-        m_p=gcm_p,
+        o_c=rcm_c_r,
+        m_c=gcm_c_r,
+        m_p=gcm_p_r,
         ratio_seq=ratio_seq_r,
         trace=trace_r,
         jitter_factor=0,
@@ -133,9 +133,9 @@ def run_mbc_methods(data):
     
     print("\nRunning MBCn...")
     mbcn = mbc.MBCn(
-        o_c=rcm_c,
-        m_c=gcm_c,
-        m_p=gcm_p,
+        o_c=rcm_c_r,
+        m_c=gcm_c_r,
+        m_p=gcm_p_r,
         ratio_seq=ratio_seq_r,
         trace=trace_r,
         jitter_factor=0,
