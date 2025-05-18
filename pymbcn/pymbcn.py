@@ -158,13 +158,23 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
             else:
                 amount = current_r_jitter_factor * val_range / 50.0
             
-            # Ensure amount is not zero if jitter is intended and factor is non-zero
+            # Handle very small amounts for precipitation variables
             if amount <= np.finfo(float).eps and current_r_jitter_factor > 0:
-                amount = current_r_jitter_factor * np.sqrt(np.finfo(float).eps) # A very small amount
-                if amount <= np.finfo(float).eps: # if current_r_jitter_factor is also tiny
-                    amount = np.finfo(float).eps * 10 # Ensure it's slightly larger than eps
+                if ratio and trace_calc < 1e-6:  # Special handling for small precipitation values
+                    amount = trace_calc * 0.1  # Use fraction of trace_calc
+                else:
+                    amount = current_r_jitter_factor * np.sqrt(np.finfo(float).eps)
+            
+            # Ensure amount is within valid bounds
+            min_amount = np.finfo(float).tiny  # Smallest positive normal number
+            max_amount = np.finfo(float).max / 2  # Half of max to avoid overflow
+            amount = np.clip(amount, min_amount, max_amount)
 
-            noise = np.random.uniform(-amount, amount, len(arr_ref))
+            try:
+                noise = np.random.uniform(-amount, amount, len(arr_ref))
+            except OverflowError:
+                # Fallback to very small jitter if range is still invalid
+                noise = np.random.uniform(-min_amount, min_amount, len(arr_ref))
 
             if arr_name == 'o_c': o_c_arr += noise
             elif arr_name == 'm_c': m_c_arr += noise
@@ -605,8 +615,22 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
         ratio_seq_list = list(ratio_seq)
 
     def ensure_list_len(param, length, default_val_if_scalar):
-        if np.isscalar(param): return [param] * length
-        return list(param)
+        if np.isscalar(param): 
+            return [param] * length
+        # Handle numpy arrays by converting to list first
+        if hasattr(param, 'tolist'):
+            param = param.tolist()
+        # Handle case where param is already a list of correct length
+        if isinstance(param, (list, tuple)) and len(param) == length:
+            return list(param)
+        # Handle case where param is a sequence but wrong length
+        if isinstance(param, (list, tuple)):
+            return [param[i % len(param)] if len(param) > 0 else [default_val_if_scalar] for i in range(length)]
+        # Fallback for other sequence types
+        try:
+            return [param[i] if hasattr(param, '__getitem__') else default_val_if_scalar for i in range(length)]
+        except (TypeError, IndexError):
+            return [default_val_if_scalar] * length
 
     trace_list = ensure_list_len(trace, n_vars, 0.05)
     trace_calc_list = [0.5 * t for t in trace_list] # Derived from trace_list
@@ -712,6 +736,21 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
 
     return {'mhat_c': m_c_final, 'mhat_p': m_p_final}
 
+def generate_rotation_sequence(n_vars, n_iter, seed=None):
+    """Generate sequence of random rotation matrices for MBCn"""
+    if seed is not None:
+        np.random.seed(seed)
+    return [rot_random(n_vars) for _ in range(n_iter)]
+
+def save_rotation_sequence(rot_seq, filename):
+    """Save rotation sequence to file"""
+    np.savez(filename, *rot_seq)
+
+def load_rotation_sequence(filename):
+    """Load rotation sequence from file"""
+    with np.load(filename) as data:
+        return [data[f'arr_{i}'] for i in range(len(data.files))]
+
 def MBCn(o_c, m_c, m_p, iter=30, ratio_seq=None, trace=0.05,
          trace_calc=0.5*0.05, jitter_factor=0, n_tau=None, ratio_max=2,
          ratio_max_trace=10*0.05, ties='first', qmap_precalc=False, 
@@ -751,17 +790,17 @@ def MBCn(o_c, m_c, m_p, iter=30, ratio_seq=None, trace=0.05,
     current_n_escore = 0
     if n_escore is not None and n_escore > 0:
         current_n_escore = min(o_c_arr.shape[0], m_c_arr.shape[0], n_escore)
-        if current_n_escore > 0:
-            # Use the same approach as R to select indices
-            escore_cases_o_c = np.unique(np.arange(o_c_arr.shape[0])[:current_n_escore])
-            escore_cases_m_c = np.unique(np.arange(m_c_arr.shape[0])[:current_n_escore])
-            escore_iter_values[0] = escore(o_c_arr[escore_cases_o_c], m_c_arr[escore_cases_m_c], scale_x=True)
-            if not silent: print(f"RAW {escore_iter_values[0]:.6g} : ", end='')
-        else: escore_iter_values[0] = np.nan
+        # Use the same approach as R to select indices
+        escore_cases_o_c = np.unique(np.arange(o_c_arr.shape[0])[:current_n_escore])
+        escore_cases_m_c = np.unique(np.arange(m_c_arr.shape[0])[:current_n_escore])
+        escore_iter_values[0] = escore(o_c_arr[escore_cases_o_c], m_c_arr[escore_cases_m_c], scale_x=True)
+        if not silent: 
+            print(f"RAW {escore_iter_values[0]:.6g} : ", end='')
     else:
         # Use all data points if n_escore is None or 0
         escore_cases_o_c = np.arange(o_c_arr.shape[0])
         escore_cases_m_c = np.arange(m_c_arr.shape[0])
+        escore_iter_values[0] = np.nan
 
     # Initial QDM mapping (applied once to original m_c, m_p)
     # These are m_c_qmap and m_p_qmap in R
@@ -881,22 +920,51 @@ def MBCn(o_c, m_c, m_p, iter=30, ratio_seq=None, trace=0.05,
     m_p_output = np.empty_like(m_p_final_before_shuffle)
 
     for i in range(n_vars):
+        # Calculate ranks safely
         ranks_c = rankdata(m_c_final_before_shuffle[:,i], method=rank_method_final) - 1
         ranks_p = rankdata(m_p_final_before_shuffle[:,i], method=rank_method_final) - 1
 
+        # Sort the QDM'd data
         sorted_initial_qdm_c = np.sort(m_c_after_initial_qdm[:,i])
         sorted_initial_qdm_p = np.sort(m_p_after_initial_qdm[:,i])
         
-        ranks_c = np.clip(ranks_c, 0, len(sorted_initial_qdm_c)-1)
-        ranks_p = np.clip(ranks_p, 0, len(sorted_initial_qdm_p)-1)
+        # Handle NaN/inf values in ranks
+        ranks_c = np.nan_to_num(ranks_c, nan=0, posinf=len(sorted_initial_qdm_c)-1, neginf=0)
+        ranks_p = np.nan_to_num(ranks_p, nan=0, posinf=len(sorted_initial_qdm_p)-1, neginf=0)
+        
+        # Clip to valid range and convert to int safely
+        max_rank_c = len(sorted_initial_qdm_c) - 1
+        max_rank_p = len(sorted_initial_qdm_p) - 1
+        
+        ranks_c = np.clip(ranks_c, 0, max_rank_c)
+        ranks_p = np.clip(ranks_p, 0, max_rank_p)
+        
+        # Convert to int safely - first check for any remaining invalid values
+        if np.any(np.isnan(ranks_c)) or np.any(ranks_c < 0) or np.any(ranks_c > max_rank_c):
+            ranks_c = np.clip(ranks_c, 0, max_rank_c)
+        if np.any(np.isnan(ranks_p)) or np.any(ranks_p < 0) or np.any(ranks_p > max_rank_p):
+            ranks_p = np.clip(ranks_p, 0, max_rank_p)
+            
+        ranks_c = ranks_c.astype(int)
+        ranks_p = ranks_p.astype(int)
 
-        m_c_output[:,i] = sorted_initial_qdm_c[ranks_c]
-        m_p_output[:,i] = sorted_initial_qdm_p[ranks_p]
+        # Final assignment with bounds checking
+        m_c_output[:,i] = sorted_initial_qdm_c[np.clip(ranks_c, 0, max_rank_c)]
+        m_p_output[:,i] = sorted_initial_qdm_p[np.clip(ranks_p, 0, max_rank_p)]
         
     escore_iter_dict = dict(zip(['RAW', 'QM'] + [k for k in range(iter)], escore_iter_values))
     
     return {'mhat_c': m_c_output, 'mhat_p': m_p_output, 'escore_iter': escore_iter_dict,
             'm_iter': m_iter_storage}
+
+def spatial_smooth(data, kernel_size=3, sigma=1.0):
+    """Apply 2D Gaussian smoothing to spatial data"""
+    from scipy.ndimage import gaussian_filter
+    if kernel_size <= 1:
+        return data
+    # Apply smoothing only to spatial dimensions (last 2 dims assumed to be y,x)
+    return gaussian_filter(data, sigma=sigma, mode='nearest',
+                         axes=(-2,-1), truncate=(kernel_size//2))
 
 def R2D2(o_c, m_c, m_p, ref_column=0, ratio_seq=None, trace=0.05,
          trace_calc=0.5*0.05, jitter_factor=0, n_tau=None, ratio_max=2,
