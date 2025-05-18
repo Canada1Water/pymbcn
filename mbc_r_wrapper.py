@@ -58,9 +58,9 @@ def run_mbc_methods(data):
     r = ro.r
     
     # Convert numpy arrays to R matrices
-    gcm_c = r.matrix(data['gcm_c'], nrow=data['gcm_c'].shape[0], ncol=data['gcm_c'].shape[1])
-    rcm_c = r.matrix(data['rcm_c'], nrow=data['rcm_c'].shape[0], ncol=data['rcm_c'].shape[1])
-    gcm_p = r.matrix(data['gcm_p'], nrow=data['gcm_p'].shape[0], ncol=data['gcm_p'].shape[1])
+    gcm_c_r = r.matrix(data['gcm_c'], nrow=data['gcm_c'].shape[0], ncol=data['gcm_c'].shape[1])
+    rcm_c_r = r.matrix(data['rcm_c'], nrow=data['rcm_c'].shape[0], ncol=data['rcm_c'].shape[1])
+    gcm_p_r = r.matrix(data['gcm_p'], nrow=data['gcm_p'].shape[0], ncol=data['gcm_p'].shape[1])
     
     # Convert parameters to R format
     ratio_seq_r = ro.BoolVector(data['ratio_seq'])
@@ -76,10 +76,15 @@ def run_mbc_methods(data):
     
     for i in range(len(data['var_names'])):
         print(f"  Variable {i+1}/{len(data['var_names'])}: {data['var_names'][i]}")
+        # Extract columns using R's matrix indexing
+        o_c_col = rcm_c_r.rx(ro.IntVector(range(1, data['rcm_c'].shape[0]+1)), i+1)
+        m_c_col = gcm_c_r.rx(ro.IntVector(range(1, data['gcm_c'].shape[0]+1)), i+1)
+        m_p_col = gcm_p_r.rx(ro.IntVector(range(1, data['gcm_p'].shape[0]+1)), i+1)
+        
         qdm = mbc.QDM(
-            o_c=rcm_c.rx(True, i+1),  # R uses 1-based indexing
-            m_c=gcm_c.rx(True, i+1),
-            m_p=gcm_p.rx(True, i+1),
+            o_c=o_c_col,
+            m_c=m_c_col,
+            m_p=m_p_col,
             ratio=ratio_seq_r[i],
             trace=trace_r[i],
             trace_calc=trace_calc_r[i],
