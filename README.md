@@ -66,7 +66,7 @@ See MBC_R/MBC.pdf
 
 ## TODO
 
-Implement xarray apply_ufunc example
+Implement xarray apply_ufunc example (mostly working but kept separate from this repository)
 
 Improve differences between R package and python package (also energy distance scores)
 
