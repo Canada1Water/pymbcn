@@ -83,19 +83,26 @@ def main():
                             slope, intercept, r_value, p_value, std_err = linregress(py_data, r_data)
                             r_squared = r_value**2
 
-                            # Scatter plot
+                            # Calculate x-axis range
+                            x_min = np.min(py_data)
+                            x_max = np.max(py_data)
+                            if x_min == x_max: # Handle case of single point data
+                                x_min = x_min - 0.1*abs(x_min) if x_min != 0 else -0.1
+                                x_max = x_max + 0.1*abs(x_max) if x_max != 0 else 0.1
+                                if x_min == x_max: # if still same (e.g. zero)
+                                    x_min, x_max = x_min-1, x_max+1
+                            
+                            # Calculate corresponding y-axis range using regression
+                            y_min = intercept + slope * x_min
+                            y_max = intercept + slope * x_max
+                            
+                            # Scatter plot with matching axis ranges
                             ax.scatter(py_data, r_data, alpha=0.4, s=5)
+                            ax.set_xlim(x_min, x_max)
+                            ax.set_ylim(y_min, y_max)
                             
                             # Regression line
-                            line_x_min = np.min(py_data)
-                            line_x_max = np.max(py_data)
-                            if line_x_min == line_x_max: # Handle case of single point data
-                                line_x = np.array([line_x_min - 0.1*abs(line_x_min) if line_x_min != 0 else -0.1, 
-                                                   line_x_max + 0.1*abs(line_x_max) if line_x_max != 0 else 0.1])
-                                if line_x[0] == line_x[1]: line_x = np.array([line_x_min-1, line_x_max+1]) # if still same (e.g. zero)
-                            else:
-                                line_x = np.array([line_x_min, line_x_max])
-                            
+                            line_x = np.array([x_min, x_max])
                             line_y = intercept + slope * line_x
                             ax.plot(line_x, line_y, color='red', linestyle='--', linewidth=1)
                             
