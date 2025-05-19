@@ -83,12 +83,21 @@ def main():
                             slope, intercept, r_value, p_value, std_err = linregress(py_data, r_data)
                             r_squared = r_value**2
 
+                            # Calculate global min/max for consistent axes
+                            global_min = min(np.min(py_data), np.min(r_data))
+                            global_max = max(np.max(py_data), np.max(r_data))
+                            padding = 0.1 * (global_max - global_min) if global_max != global_min else 0.1
+                            
+                            # Set consistent axis limits
+                            ax.set_xlim(global_min - padding, global_max + padding)
+                            ax.set_ylim(global_min - padding, global_max + padding)
+                            
                             # Scatter plot
                             ax.scatter(py_data, r_data, alpha=0.4, s=5)
                             
                             # Regression line
-                            line_x_min = np.min(py_data)
-                            line_x_max = np.max(py_data)
+                            line_x_min = global_min - padding
+                            line_x_max = global_max + padding
                             if line_x_min == line_x_max: # Handle case of single point data
                                 line_x = np.array([line_x_min - 0.1*abs(line_x_min) if line_x_min != 0 else -0.1, 
                                                    line_x_max + 0.1*abs(line_x_max) if line_x_max != 0 else 0.1])
