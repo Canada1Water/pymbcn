@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import linregress
 
+import os
+
 # --- Configuration ---
 # Use absolute paths to avoid file location issues
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
