@@ -130,7 +130,7 @@ def run_mbc_methods(data):
         m_p_col = ro.FloatVector(data['gcm_p'][:, i])
         
         try:
-            print(f"Running QDM for {var} with trace={trace_r[i]}, ratio={ratio_seq_r[i]}")
+            print(f"Running QDM for {data['var_names'][i]} with trace={trace_r[i]}, ratio={ratio_seq_r[i]}")
             qdm = mbc.QDM(
                 o_c=o_c_col,
                 m_c=m_c_col,
@@ -141,7 +141,7 @@ def run_mbc_methods(data):
                 jitter_factor=0,
                 ties="first"
             )
-            print(f"QDM completed for {var}")
+            print(f"QDM completed for {data['var_names'][i]}")
             
             # Check for NULL returns and handle empty results
             mhat_c = qdm.rx2('mhat_c')
