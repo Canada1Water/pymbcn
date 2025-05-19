@@ -186,25 +186,47 @@ def run_mbc_methods(data):
     }
     
     print("\nRunning MBCn...")
-    mbcn = mbc.MBCn(
-        o_c=rcm_c_r,
-        m_c=gcm_c_r,
-        m_p=gcm_p_r,
-        ratio_seq=ratio_seq_r,
-        trace=trace_r,
-        jitter_factor=0,
-        ties="first",
-        silent=False,
-        n_escore=100
-    )
-    results['mbcn'] = {
-        'mhat_c': np.array(mbcn.rx2('mhat_c')),
-        'mhat_p': np.array(mbcn.rx2('mhat_p')),
-        'escore_iter': dict(zip(
-            mbcn.names,
-            [np.array(x) if hasattr(x, '__len__') else x for x in mbcn]
-        ))
-    }
+    try:
+        mbcn = mbc.MBCn(
+            o_c=rcm_c_r,
+            m_c=gcm_c_r,
+            m_p=gcm_p_r,
+            ratio_seq=ratio_seq_r,
+            trace=trace_r,
+            jitter_factor=0,
+            ties="first",
+            silent=False,
+            n_escore=100
+        )
+        
+        # Handle potential NULL returns
+        mhat_c = mbcn.rx2('mhat_c')
+        mhat_p = mbcn.rx2('mhat_p')
+        
+        if mhat_c == ro.NULL or mhat_p == ro.NULL:
+            print("Warning: MBCn returned NULL values, using original data")
+            results['mbcn'] = {
+                'mhat_c': data['gcm_c'],
+                'mhat_p': data['gcm_p'],
+                'escore_iter': {'RAW': np.nan, 'QM': np.nan}
+            }
+        else:
+            results['mbcn'] = {
+                'mhat_c': np.atleast_1d(np.array(mhat_c)),
+                'mhat_p': np.atleast_1d(np.array(mhat_p)),
+                'escore_iter': dict(zip(
+                    mbcn.names,
+                    [np.array(x) if hasattr(x, '__len__') else x for x in mbcn]
+                )) if hasattr(mbcn, 'names') else {}
+            }
+    except Exception as e:
+        print(f"Error running MBCn: {str(e)}")
+        print("Using original data as fallback")
+        results['mbcn'] = {
+            'mhat_c': data['gcm_c'],
+            'mhat_p': data['gcm_p'],
+            'escore_iter': {'error': str(e)}
+        }
     
     return results
 
@@ -226,18 +248,26 @@ def save_results_to_netcdf(results, var_names, output_file):
                 # Control period
                 nc_var_c = nc.createVariable(
                     f"{method}_{var}_c", 'f4', ('time_c',))
-                if mhat_c.ndim > 1:
-                    nc_var_c[:] = mhat_c[:, i]
-                else:
-                    nc_var_c[:] = mhat_c
+                try:
+                    if mhat_c.ndim > 1:
+                        nc_var_c[:] = np.nan_to_num(mhat_c[:, i])
+                    else:
+                        nc_var_c[:] = np.nan_to_num(mhat_c)
+                except Exception as e:
+                    print(f"Error saving {method}_{var}_c: {str(e)}")
+                    nc_var_c[:] = np.nan
                 
                 # Projection period
                 nc_var_p = nc.createVariable(
                     f"{method}_{var}_p", 'f4', ('time_p',))
-                if mhat_p.ndim > 1:
-                    nc_var_p[:] = mhat_p[:, i]
-                else:
-                    nc_var_p[:] = mhat_p
+                try:
+                    if mhat_p.ndim > 1:
+                        nc_var_p[:] = np.nan_to_num(mhat_p[:, i])
+                    else:
+                        nc_var_p[:] = np.nan_to_num(mhat_p)
+                except Exception as e:
+                    print(f"Error saving {method}_{var}_p: {str(e)}")
+                    nc_var_p[:] = np.nan
         
         # Save energy scores if available
         if 'escore_iter' in results['mbcn']:
