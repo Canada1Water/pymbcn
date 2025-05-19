@@ -73,10 +73,18 @@ def load_netcdf_data(nc_file_path):
                     if v.startswith('gcm_c_') or v.startswith('rcm_c_')]
         var_names = sorted(list(set(var_names)))  # Get unique sorted vars
         
-        # Load data into arrays
+        # Load data and units into arrays
         gcm_c = np.column_stack([nc.variables[f'gcm_c_{var}'][:] for var in var_names])
         rcm_c = np.column_stack([nc.variables[f'rcm_c_{var}'][:] for var in var_names])
         gcm_p = np.column_stack([nc.variables[f'gcm_p_{var}'][:] for var in var_names])
+        
+        # Store units for each variable
+        var_units = {}
+        for var in var_names:
+            try:
+                var_units[var] = nc.variables[f'gcm_c_{var}'].units
+            except AttributeError:
+                var_units[var] = 'unknown'
         
         # Get metadata and handle masked values
         ratio_seq = np.ma.filled(nc.variables['ratio_seq'][:], False).astype(bool)
@@ -88,7 +96,8 @@ def load_netcdf_data(nc_file_path):
         'gcm_p': gcm_p,
         'var_names': var_names,
         'ratio_seq': ratio_seq,
-        'trace': trace
+        'trace': trace,
+        'var_units': var_units
     }
 
 def run_mbc_methods(data):
@@ -284,7 +293,7 @@ def run_mbc_methods(data):
     
     return results
 
-def save_results_to_netcdf(results, var_names, output_file):
+def save_results_to_netcdf(results, var_names, var_units, output_file):
     """Save results to NetCDF file"""
     print(f"\nSaving results to {output_file}...")
     with netCDF4.Dataset(output_file, 'w') as nc:
@@ -307,9 +316,11 @@ def save_results_to_netcdf(results, var_names, output_file):
                         nc_var_c[:] = np.nan_to_num(mhat_c[:, i])
                     else:
                         nc_var_c[:] = np.nan_to_num(mhat_c)
+                    nc_var_c.units = var_units[var]
                 except Exception as e:
                     print(f"Error saving {method}_{var}_c: {str(e)}")
                     nc_var_c[:] = np.nan
+                    nc_var_c.units = 'unknown'
                 
                 # Projection period
                 nc_var_p = nc.createVariable(
@@ -319,9 +330,11 @@ def save_results_to_netcdf(results, var_names, output_file):
                         nc_var_p[:] = np.nan_to_num(mhat_p[:, i])
                     else:
                         nc_var_p[:] = np.nan_to_num(mhat_p)
+                    nc_var_p.units = var_units[var]
                 except Exception as e:
                     print(f"Error saving {method}_{var}_p: {str(e)}")
                     nc_var_p[:] = np.nan
+                    nc_var_p.units = 'unknown'
         
         # Save energy scores if available
         if 'escore_iter' in results['mbcn']:
@@ -380,7 +393,7 @@ def main():
     
     # Save results
     output_file = 'r2py_corrected_output.nc'
-    save_results_to_netcdf(results, data['var_names'], output_file)
+    save_results_to_netcdf(results, data['var_names'], data['var_units'], output_file)
     
     # Run comparison with Python results
     run_comparison()
