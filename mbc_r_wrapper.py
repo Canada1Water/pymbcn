@@ -154,36 +154,76 @@ def run_mbc_methods(data):
     }
     
     print("\nRunning MBCp...")
-    mbcp = mbc.MBCp(
-        o_c=rcm_c_r,
-        m_c=gcm_c_r,
-        m_p=gcm_p_r,
-        ratio_seq=ratio_seq_r,
-        trace=trace_r,
-        jitter_factor=0,
-        ties="first",
-        silent=False
-    )
-    results['mbcp'] = {
-        'mhat_c': np.array(mbcp.rx2('mhat_c')),
-        'mhat_p': np.array(mbcp.rx2('mhat_p'))
-    }
+    try:
+        mbcp = mbc.MBCp(
+            o_c=rcm_c_r,
+            m_c=gcm_c_r,
+            m_p=gcm_p_r,
+            ratio_seq=ratio_seq_r,
+            trace=trace_r,
+            jitter_factor=0,
+            ties="first",
+            silent=False
+        )
+        
+        # Handle potential NULL returns
+        mhat_c = mbcp.rx2('mhat_c')
+        mhat_p = mbcp.rx2('mhat_p')
+        
+        if mhat_c == ro.NULL or mhat_p == ro.NULL:
+            print("Warning: MBCp returned NULL values, using original data")
+            results['mbcp'] = {
+                'mhat_c': data['gcm_c'],
+                'mhat_p': data['gcm_p']
+            }
+        else:
+            results['mbcp'] = {
+                'mhat_c': np.atleast_1d(np.array(mhat_c)),
+                'mhat_p': np.atleast_1d(np.array(mhat_p))
+            }
+    except Exception as e:
+        print(f"Error running MBCp: {str(e)}")
+        print("Using original data as fallback")
+        results['mbcp'] = {
+            'mhat_c': data['gcm_c'],
+            'mhat_p': data['gcm_p']
+        }
     
     print("\nRunning MBCr...")
-    mbcr = mbc.MBCr(
-        o_c=rcm_c_r,
-        m_c=gcm_c_r,
-        m_p=gcm_p_r,
-        ratio_seq=ratio_seq_r,
-        trace=trace_r,
-        jitter_factor=0,
-        ties="first",
-        silent=False
-    )
-    results['mbcr'] = {
-        'mhat_c': np.array(mbcr.rx2('mhat_c')),
-        'mhat_p': np.array(mbcr.rx2('mhat_p'))
-    }
+    try:
+        mbcr = mbc.MBCr(
+            o_c=rcm_c_r,
+            m_c=gcm_c_r,
+            m_p=gcm_p_r,
+            ratio_seq=ratio_seq_r,
+            trace=trace_r,
+            jitter_factor=0,
+            ties="first",
+            silent=False
+        )
+        
+        # Handle potential NULL returns
+        mhat_c = mbcr.rx2('mhat_c')
+        mhat_p = mbcr.rx2('mhat_p')
+        
+        if mhat_c == ro.NULL or mhat_p == ro.NULL:
+            print("Warning: MBCr returned NULL values, using original data")
+            results['mbcr'] = {
+                'mhat_c': data['gcm_c'],
+                'mhat_p': data['gcm_p']
+            }
+        else:
+            results['mbcr'] = {
+                'mhat_c': np.atleast_1d(np.array(mhat_c)),
+                'mhat_p': np.atleast_1d(np.array(mhat_p))
+            }
+    except Exception as e:
+        print(f"Error running MBCr: {str(e)}")
+        print("Using original data as fallback")
+        results['mbcr'] = {
+            'mhat_c': data['gcm_c'],
+            'mhat_p': data['gcm_p']
+        }
     
     print("\nRunning MBCn...")
     try:
