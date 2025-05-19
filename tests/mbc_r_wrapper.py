@@ -350,8 +350,17 @@ def main():
     # Setup R environment
     install_r_packages()
     
-    # Load data
-    nc_file = 'MBC_R/data/cccma_output.nc'
+    # Load data - construct path relative to script location
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    nc_file = os.path.abspath(os.path.join(script_dir, '..', 'MBC_R', 'data', 'cccma_output.nc'))
+    
+    if not os.path.exists(nc_file):
+        raise FileNotFoundError(
+            f"NetCDF data file not found at: {nc_file}\n"
+            "Please ensure the file exists and the path is correct."
+        )
+    
+    print(f"Loading data from: {nc_file}")
     data = load_netcdf_data(nc_file)
     
     # Run MBC methods through R
