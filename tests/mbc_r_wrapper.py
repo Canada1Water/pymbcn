@@ -197,7 +197,7 @@ def run_mbc_methods(data):
                 o_c=o_c_col,
                 m_c=m_c_col,
                 m_p=m_p_col, # This is gcm_p for getting both mhat_c and mhat_p
-                ratio=data['ratio_seq'][i], # Use boolean directly
+                ratio=bool(data['ratio_seq'][i]), # Convert numpy.bool_ to Python bool
                 trace=current_trace_for_var,
                 trace_calc=current_trace_calc_for_var,
                 jitter_factor=0,
@@ -236,7 +236,7 @@ def run_mbc_methods(data):
 
                         qdm_adjusted_result = mbc.QDM(
                             o_c=o_c_col, m_c=m_c_col, m_p=m_p_col,
-                            ratio=data['ratio_seq'][i],
+                            ratio=bool(data['ratio_seq'][i]), # Convert numpy.bool_ to Python bool
                             trace=adjusted_trace_val,
                             trace_calc=adjusted_trace_calc_val,
                             jitter_factor=0, ties="first", pp_type="linear"
@@ -270,7 +270,7 @@ def run_mbc_methods(data):
             m_p=gcm_p_r,
             ratio_seq=ratio_seq_r, # Original ratio_seq R vector
             trace=final_trace_r,   # Potentially modified trace R vector
-            jitter_factor=0,
+            jitter_factor=0.0,     # Use float for R numeric
             ties="first",
             silent=False,
             pp_type="linear",      # Added pp_type
@@ -308,7 +308,7 @@ def run_mbc_methods(data):
             m_p=gcm_p_r,
             ratio_seq=ratio_seq_r, # Original ratio_seq R vector
             trace=final_trace_r,   # Potentially modified trace R vector
-            jitter_factor=0,
+            jitter_factor=0.0,     # Use float for R numeric
             ties="first",
             silent=False,
             pp_type="linear",      # Added pp_type
@@ -357,7 +357,7 @@ def run_mbc_methods(data):
             m_p=gcm_p_r,
             ratio_seq=ratio_seq_r,    # Original ratio_seq R vector
             trace=final_trace_r,      # Potentially modified trace R vector
-            jitter_factor=0,
+            jitter_factor=0.0,        # Use float for R numeric
             ties="first",
             silent=False,
             n_escore=100,
@@ -378,13 +378,22 @@ def run_mbc_methods(data):
                 'escore_iter': {'RAW': np.nan, 'QM': np.nan}
             }
         else:
+            py_escore_iter = {}
+            escore_iter_r_obj = mbcn.rx2('escore.iter')
+            if escore_iter_r_obj != ro.NULL and hasattr(escore_iter_r_obj, 'names'):
+                for i_escore in range(len(escore_iter_r_obj.names)):
+                    name = escore_iter_r_obj.names[i_escore]
+                    # Access element safely, then convert
+                    value_r_element = escore_iter_r_obj.rx(i_escore + 1) # R is 1-indexed for .rx
+                    value_np = np.asarray(value_r_element)
+                    py_escore_iter[name] = value_np[0] if value_np.ndim > 0 and value_np.size == 1 else value_np
+            else:
+                py_escore_iter = {'RAW': np.nan, 'QM': np.nan} # Fallback
+
             results['mbcn'] = {
                 'mhat_c': np.atleast_1d(np.array(mhat_c)),
                 'mhat_p': np.atleast_1d(np.array(mhat_p)),
-                'escore_iter': dict(zip(
-                    mbcn.names,
-                    [np.array(x) if hasattr(x, '__len__') else x for x in mbcn]
-                )) if hasattr(mbcn, 'names') else {}
+                'escore_iter': py_escore_iter
             }
     except Exception as e:
         print(f"Error running MBCn: {str(e)}")
