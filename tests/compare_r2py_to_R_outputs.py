@@ -88,28 +88,19 @@ def main():
                             slope, intercept, r_value, p_value, std_err = linregress(py_data, r_data)
                             r_squared = r_value**2
 
-                            # Calculate y-axis range (R data)
-                            y_min = np.min(r_data)
-                            y_max = np.max(r_data)
-                            if y_min == y_max: # Handle case of single point data
-                                y_min = y_min - 0.1*abs(y_min) if y_min != 0 else -0.1
-                                y_max = y_max + 0.1*abs(y_max) if y_max != 0 else 0.1
-                                if y_min == y_max: # if still same (e.g. zero)
-                                    y_min, y_max = y_min-1, y_max+1
+                            # Calculate range based on R data
+                            data_min = np.min(r_data)
+                            data_max = np.max(r_data)
+                            if data_min == data_max: # Handle case of single point data
+                                data_min = data_min - 0.1*abs(data_min) if data_min != 0 else -0.1
+                                data_max = data_max + 0.1*abs(data_max) if data_max != 0 else 0.1
+                                if data_min == data_max: # if still same (e.g. zero)
+                                    data_min, data_max = data_min-1, data_max+1
                             
-                            # Calculate corresponding x-axis range using regression
-                            # x = (y - intercept)/slope
-                            if abs(slope) > 1e-6:  # Avoid division by near-zero
-                                x_min = (y_min - intercept)/slope
-                                x_max = (y_max - intercept)/slope
-                            else:
-                                x_min = np.min(py_data)
-                                x_max = np.max(py_data)
-                            
-                            # Scatter plot with matching axis ranges
+                            # Use same range for both axes
                             ax.scatter(py_data, r_data, alpha=0.4, s=5)
-                            ax.set_ylim(y_min, y_max)
-                            ax.set_xlim(x_min, x_max)
+                            ax.set_ylim(data_min, data_max)
+                            ax.set_xlim(data_min, data_max)
                             
                             # Regression line
                             line_x = np.array([x_min, x_max])
