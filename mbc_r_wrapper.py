@@ -15,14 +15,18 @@ utils = importr('utils')
 def install_r_packages():
     """Install required R packages"""
     print("Checking/installing R packages...")
+    # Set custom library path
+    r_lib_path = '/home/guido/R/x86_64-pc-linux-gnu-library/4.4'
+    ro.r(f'.libPaths(c("{r_lib_path}", .libPaths()))')
+    
     if not ro.packages.isinstalled('MBC'):
-        utils.install_packages('MBC')
+        utils.install_packages('MBC', lib=r_lib_path)
     if not ro.packages.isinstalled('Matrix'):
-        utils.install_packages('Matrix')
+        utils.install_packages('Matrix', lib=r_lib_path)
     if not ro.packages.isinstalled('energy'):
-        utils.install_packages('energy')
+        utils.install_packages('energy', lib=r_lib_path) 
     if not ro.packages.isinstalled('FNN'):
-        utils.install_packages('FNN')
+        utils.install_packages('FNN', lib=r_lib_path)
 
 def load_netcdf_data(nc_file_path):
     """Load data from NetCDF file into numpy arrays"""
@@ -76,10 +80,10 @@ def run_mbc_methods(data):
     
     for i in range(len(data['var_names'])):
         print(f"  Variable {i+1}/{len(data['var_names'])}: {data['var_names'][i]}")
-        # Extract columns using R's matrix indexing
-        o_c_col = rcm_c_r.rx(ro.IntVector(range(1, data['rcm_c'].shape[0]+1)), i+1)
-        m_c_col = gcm_c_r.rx(ro.IntVector(range(1, data['gcm_c'].shape[0]+1)), i+1)
-        m_p_col = gcm_p_r.rx(ro.IntVector(range(1, data['gcm_p'].shape[0]+1)), i+1)
+        # Extract columns by converting to R vectors first
+        o_c_col = ro.FloatVector(data['rcm_c'][:, i])
+        m_c_col = ro.FloatVector(data['gcm_c'][:, i])
+        m_p_col = ro.FloatVector(data['gcm_p'][:, i])
         
         qdm = mbc.QDM(
             o_c=o_c_col,
