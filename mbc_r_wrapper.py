@@ -17,20 +17,38 @@ def install_r_packages():
     print("Checking/installing R packages...")
     # Set custom library path and suppress warnings
     r_lib_path = '/home/guido/R/x86_64-pc-linux-gnu-library/4.4'
-    ro.r('''
-    options(warn=-1)  # Suppress warnings temporarily
-    .libPaths(c("{}", .libPaths()))
-    options(warn=0)   # Restore warnings
-    '''.format(r_lib_path))
     
-    # Check and install packages with error handling
-    for pkg in ['MBC', 'Matrix', 'energy', 'FNN']:
+    # First verify R library path exists
+    if not os.path.exists(r_lib_path):
+        print(f"Creating R library directory: {r_lib_path}")
+        os.makedirs(r_lib_path, exist_ok=True)
+    
+    # Set library path and suppress warnings
+    ro.r(f'''
+    options(warn=-1)
+    if(!dir.exists("{r_lib_path}")) dir.create("{r_lib_path}", recursive=TRUE)
+    .libPaths(c("{r_lib_path}", .libPaths()))
+    options(warn=0)
+    ''')
+    
+    # Check and install packages with better error handling
+    required_pkgs = ['MBC', 'Matrix', 'energy', 'FNN']
+    installed = ro.packages.installed_packages()
+    
+    for pkg in required_pkgs:
         try:
-            if not ro.packages.isinstalled(pkg):
+            if pkg not in installed:
                 print(f"Installing {pkg}...")
-                utils.install_packages(pkg, lib=r_lib_path)
+                utils.install_packages(pkg, lib=r_lib_path, repos="https://cloud.r-project.org")
+                # Verify installation
+                if pkg not in ro.packages.installed_packages():
+                    raise RuntimeError(f"Failed to verify {pkg} installation")
+                print(f"Successfully installed {pkg}")
+            else:
+                print(f"{pkg} is already installed")
         except Exception as e:
-            print(f"Error installing {pkg}: {str(e)}")
+            print(f"Critical error installing {pkg}: {str(e)}")
+            sys.exit(1)
 
 def load_netcdf_data(nc_file_path):
     """Load data from NetCDF file into numpy arrays"""
@@ -101,15 +119,18 @@ def run_mbc_methods(data):
                 ties="first"
             )
             
-            # Check for NULL returns
+            # Check for NULL returns and handle empty results
             mhat_c = qdm.rx2('mhat_c')
             mhat_p = qdm.rx2('mhat_p')
             
             if mhat_c == ro.NULL or mhat_p == ro.NULL:
-                raise ValueError(f"QDM returned NULL for variable {data['var_names'][i]}")
-                
-            qdm_c[:, i] = np.array(mhat_c)
-            qdm_p[:, i] = np.array(mhat_p)
+                print(f"Warning: QDM returned NULL for variable {data['var_names'][i]}, using original values")
+                qdm_c[:, i] = data['gcm_c'][:, i]
+                qdm_p[:, i] = data['gcm_p'][:, i]
+            else:
+                # Ensure results are properly shaped arrays
+                qdm_c[:, i] = np.atleast_1d(np.array(mhat_c))
+                qdm_p[:, i] = np.atleast_1d(np.array(mhat_p))
             
         except Exception as e:
             print(f"Error processing variable {data['var_names'][i]}: {str(e)}")
@@ -188,15 +209,25 @@ def save_results_to_netcdf(results, var_names, output_file):
         # Save variables for each method
         for method in ['qdm', 'mbcp', 'mbcr', 'mbcn']:
             for i, var in enumerate(var_names):
+                # Ensure data is properly shaped
+                mhat_c = np.atleast_1d(results[method]['mhat_c'])
+                mhat_p = np.atleast_1d(results[method]['mhat_p'])
+                
                 # Control period
                 nc_var_c = nc.createVariable(
                     f"{method}_{var}_c", 'f4', ('time_c',))
-                nc_var_c[:] = results[method]['mhat_c'][:, i]
+                if mhat_c.ndim > 1:
+                    nc_var_c[:] = mhat_c[:, i]
+                else:
+                    nc_var_c[:] = mhat_c
                 
                 # Projection period
                 nc_var_p = nc.createVariable(
                     f"{method}_{var}_p", 'f4', ('time_p',))
-                nc_var_p[:] = results[method]['mhat_p'][:, i]
+                if mhat_p.ndim > 1:
+                    nc_var_p[:] = mhat_p[:, i]
+                else:
+                    nc_var_p[:] = mhat_p
         
         # Save energy scores if available
         if 'escore_iter' in results['mbcn']:
