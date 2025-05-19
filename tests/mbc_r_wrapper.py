@@ -340,7 +340,7 @@ def run_comparison():
     
     for attempt in range(max_attempts):
         if (os.path.exists('python_corrected_output.nc') and 
-            os.path.exists('r_corrected_output.nc')):
+            os.path.exists('r2py_corrected_output.nc')):
             files_exist = True
             break
         time.sleep(wait_seconds)
@@ -351,7 +351,7 @@ def run_comparison():
         
     try:
         # Get absolute path to comparison script (it's in the same directory)
-        script_path = os.path.join(os.path.dirname(__file__), "compare_outputs.py")
+        script_path = os.path.join(os.path.dirname(__file__), "compare_r2py_to_R_outputs.py")
         subprocess.run([sys.executable, script_path], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error running comparison: {e}")
@@ -379,7 +379,7 @@ def main():
     results = run_mbc_methods(data)
     
     # Save results
-    output_file = 'r_corrected_output.nc'
+    output_file = 'r2py_corrected_output.nc'
     save_results_to_netcdf(results, data['var_names'], output_file)
     
     # Run comparison with Python results
