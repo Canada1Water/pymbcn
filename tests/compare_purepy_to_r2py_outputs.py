@@ -79,10 +79,6 @@ def main():
                                 ax.set_yticks([])
                                 continue
 
-                            # Perform linear regression
-                            slope, intercept, r_value, p_value, std_err = linregress(py_data, r_data)
-                            r_squared = r_value**2
-
                             # Calculate global min/max for consistent axes
                             global_min = min(np.min(py_data), np.min(r_data))
                             global_max = max(np.max(py_data), np.max(r_data))
@@ -95,23 +91,30 @@ def main():
                             # Scatter plot
                             ax.scatter(py_data, r_data, alpha=0.4, s=5)
                             
-                            # Regression line
-                            line_x_min = global_min - padding
-                            line_x_max = global_max + padding
-                            if line_x_min == line_x_max: # Handle case of single point data
-                                line_x = np.array([line_x_min - 0.1*abs(line_x_min) if line_x_min != 0 else -0.1, 
-                                                   line_x_max + 0.1*abs(line_x_max) if line_x_max != 0 else 0.1])
-                                if line_x[0] == line_x[1]: line_x = np.array([line_x_min-1, line_x_max+1]) # if still same (e.g. zero)
-                            else:
-                                line_x = np.array([line_x_min, line_x_max])
+                            # Perform linear regression
+                            slope, intercept, r_value, p_value, std_err = linregress(py_data, r_data)
+                            r_squared = r_value**2
+
+                            # Create points spanning the full plot range for regression line
+                            plot_x = np.array([global_min - padding, global_max + padding])
+                            reg_y = intercept + slope * plot_x
                             
-                            line_y = intercept + slope * line_x
-                            ax.plot(line_x, line_y, color='red', linestyle='--', linewidth=1)
+                            # Plot regression line
+                            ax.plot(plot_x, reg_y, color='red', linestyle='--', linewidth=1, 
+                                   label=f'Regression (slope={slope:.2f})')
                             
-                            # Annotate with R-squared
-                            ax.text(0.05, 0.95, f'$R^2 = {r_squared:.2f}$', 
+                            # Plot 1:1 reference line
+                            ax.plot(plot_x, plot_x, color='blue', linestyle=':', linewidth=1, 
+                                   label='1:1 reference')
+                            
+                            # Annotate with R-squared and slope
+                            ax.text(0.05, 0.95, f'$R^2 = {r_squared:.2f}$\nSlope = {slope:.2f}', 
                                     transform=ax.transAxes, fontsize=8, va='top',
                                     bbox=dict(boxstyle='round,pad=0.2', fc='wheat', alpha=0.6))
+                            
+                            # Add legend if there's space
+                            if global_max - global_min > 0:  # Only add legend if data range is non-zero
+                                ax.legend(loc='lower right', fontsize=6)
 
                         except KeyError:
                             print(f"Warning: Variable {nc_var_key} not found. Skipping plot.")
