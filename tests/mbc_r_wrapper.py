@@ -369,34 +369,6 @@ def save_results_to_netcdf(results, var_names, var_units, output_file):
                 if isinstance(v, (int, float)):
                     nc.setncattr(f"mbcn_escore_{k}", v)
 
-def run_comparison():
-    """Run the comparison script"""
-    print("\nRunning comparison between R and Python results...")
-    
-    # Wait for files to exist
-    max_attempts = 5
-    wait_seconds = 1
-    files_exist = False
-    
-    for attempt in range(max_attempts):
-        if (os.path.exists('python_corrected_output.nc') and 
-            os.path.exists('r2py_corrected_output.nc')):
-            files_exist = True
-            break
-        time.sleep(wait_seconds)
-    
-    if not files_exist:
-        print("Error: Required NetCDF files not found after waiting")
-        return
-        
-    try:
-        # Get absolute path to comparison script (it's in the same directory)
-        script_path = os.path.join(os.path.dirname(__file__), "compare_r2py_to_R_outputs.py")
-        subprocess.run([sys.executable, script_path], check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Error running comparison: {e}")
-    except Exception as e:
-        print(f"Unexpected error running comparison: {e}")
 
 def main():
     # Setup R environment
@@ -422,8 +394,6 @@ def main():
     output_file = 'r2py_corrected_output.nc'
     save_results_to_netcdf(results, data['var_names'], data['var_units'], output_file)
     
-    # Run comparison with Python results
-    run_comparison()
 
 if __name__ == '__main__':
     main()
