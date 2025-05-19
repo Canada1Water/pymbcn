@@ -15,18 +15,22 @@ utils = importr('utils')
 def install_r_packages():
     """Install required R packages"""
     print("Checking/installing R packages...")
-    # Set custom library path
+    # Set custom library path and suppress warnings
     r_lib_path = '/home/guido/R/x86_64-pc-linux-gnu-library/4.4'
-    ro.r(f'.libPaths(c("{r_lib_path}", .libPaths()))')
+    ro.r('''
+    options(warn=-1)  # Suppress warnings temporarily
+    .libPaths(c("{}", .libPaths()))
+    options(warn=0)   # Restore warnings
+    '''.format(r_lib_path))
     
-    if not ro.packages.isinstalled('MBC'):
-        utils.install_packages('MBC', lib=r_lib_path)
-    if not ro.packages.isinstalled('Matrix'):
-        utils.install_packages('Matrix', lib=r_lib_path)
-    if not ro.packages.isinstalled('energy'):
-        utils.install_packages('energy', lib=r_lib_path) 
-    if not ro.packages.isinstalled('FNN'):
-        utils.install_packages('FNN', lib=r_lib_path)
+    # Check and install packages with error handling
+    for pkg in ['MBC', 'Matrix', 'energy', 'FNN']:
+        try:
+            if not ro.packages.isinstalled(pkg):
+                print(f"Installing {pkg}...")
+                utils.install_packages(pkg, lib=r_lib_path)
+        except Exception as e:
+            print(f"Error installing {pkg}: {str(e)}")
 
 def load_netcdf_data(nc_file_path):
     """Load data from NetCDF file into numpy arrays"""
@@ -85,18 +89,33 @@ def run_mbc_methods(data):
         m_c_col = ro.FloatVector(data['gcm_c'][:, i])
         m_p_col = ro.FloatVector(data['gcm_p'][:, i])
         
-        qdm = mbc.QDM(
-            o_c=o_c_col,
-            m_c=m_c_col,
-            m_p=m_p_col,
-            ratio=ratio_seq_r[i],
-            trace=trace_r[i],
-            trace_calc=trace_calc_r[i],
-            jitter_factor=0,
-            ties="first"
-        )
-        qdm_c[:, i] = np.array(qdm.rx2('mhat_c'))
-        qdm_p[:, i] = np.array(qdm.rx2('mhat_p'))
+        try:
+            qdm = mbc.QDM(
+                o_c=o_c_col,
+                m_c=m_c_col,
+                m_p=m_p_col,
+                ratio=ratio_seq_r[i],
+                trace=trace_r[i],
+                trace_calc=trace_calc_r[i],
+                jitter_factor=0,
+                ties="first"
+            )
+            
+            # Check for NULL returns
+            mhat_c = qdm.rx2('mhat_c')
+            mhat_p = qdm.rx2('mhat_p')
+            
+            if mhat_c == ro.NULL or mhat_p == ro.NULL:
+                raise ValueError(f"QDM returned NULL for variable {data['var_names'][i]}")
+                
+            qdm_c[:, i] = np.array(mhat_c)
+            qdm_p[:, i] = np.array(mhat_p)
+            
+        except Exception as e:
+            print(f"Error processing variable {data['var_names'][i]}: {str(e)}")
+            # Fill with original values if QDM fails
+            qdm_c[:, i] = data['gcm_c'][:, i]
+            qdm_p[:, i] = data['gcm_p'][:, i]
     
     results['qdm'] = {
         'mhat_c': qdm_c,
