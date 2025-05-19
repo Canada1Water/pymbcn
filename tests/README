@@ -1,0 +1,4 @@
+testcode.R should be run under the upper level R package directory
+cd ../MBC_R/R/
+Rscript testcode.R
+
