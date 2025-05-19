@@ -54,8 +54,13 @@ def main():
 
                         if i < len(SETS) - 1:  # Remove x-tick labels for non-bottom plots
                             ax.set_xticklabels([])
-                        if j > 0:  # Remove y-tick labels for non-first-column plots
-                            ax.set_yticklabels([])
+                        # Keep y-tick labels for all plots but adjust formatting
+                        ax.tick_params(axis='y', labelsize=7)
+                        if j == 0:  # First column gets special formatting
+                            ax.yaxis.set_label_coords(-0.2, 0.5)  # Move y-label left
+                            ax.set_ylabel(f"{set_name.upper()}\nR", fontsize=11, rotation=90, labelpad=15, va='center')
+                        else:
+                            ax.set_ylabel('R', fontsize=9, rotation=90, labelpad=5)
 
                         nc_var_key = f"{set_name}_{var_name}_{period_suffix}"
 
