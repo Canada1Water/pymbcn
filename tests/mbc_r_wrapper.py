@@ -110,14 +110,36 @@ def run_mbc_methods(data):
     print("Validating input data...")
     for arr_name in ['gcm_c', 'rcm_c', 'gcm_p']:
         arr = data[arr_name]
+        # Ensure proper float64 type
+        if not np.issubdtype(arr.dtype, np.floating):
+            print(f"Converting {arr_name} to float64")
+            arr = arr.astype(np.float64)
+        # Check for invalid values
         if np.any(np.isnan(arr)):
             print(f"Warning: {arr_name} contains NaN values")
         if np.any(np.isinf(arr)):
             print(f"Warning: {arr_name} contains Inf values")
+        # Ensure 2D shape
+        if arr.ndim != 2:
+            print(f"Reshaping {arr_name} to 2D")
+            arr = arr.reshape(-1, 1)
+        data[arr_name] = arr
     
-    gcm_c_r = r.matrix(data['gcm_c'], nrow=data['gcm_c'].shape[0], ncol=data['gcm_c'].shape[1])
-    rcm_c_r = r.matrix(data['rcm_c'], nrow=data['rcm_c'].shape[0], ncol=data['rcm_c'].shape[1])
-    gcm_p_r = r.matrix(data['gcm_p'], nrow=data['gcm_p'].shape[0], ncol=data['gcm_p'].shape[1])
+    # Convert to R matrices with explicit type checking
+    def to_r_matrix(arr):
+        if not isinstance(arr, np.ndarray):
+            arr = np.array(arr)
+        if arr.ndim != 2:
+            arr = arr.reshape(-1, 1)
+        return r.matrix(
+            arr.astype(np.float64), 
+            nrow=arr.shape[0], 
+            ncol=arr.shape[1]
+        )
+    
+    gcm_c_r = to_r_matrix(data['gcm_c'])
+    rcm_c_r = to_r_matrix(data['rcm_c'])
+    gcm_p_r = to_r_matrix(data['gcm_p'])
     
     # Convert parameters to R format
     ratio_seq_r = ro.BoolVector(data['ratio_seq'])
@@ -162,8 +184,13 @@ def run_mbc_methods(data):
                 qdm_p[:, i] = data['gcm_p'][:, i]
             else:
                 # Ensure results are properly shaped arrays
-                qdm_c[:, i] = np.atleast_1d(np.array(mhat_c))
-                qdm_p[:, i] = np.atleast_1d(np.array(mhat_p))
+                # Convert R vectors back to numpy with proper shape and type
+                qdm_c[:, i] = np.asarray(mhat_c, dtype=np.float64).reshape(-1)
+                qdm_p[:, i] = np.asarray(mhat_p, dtype=np.float64).reshape(-1)
+            
+                # Verify conversion
+                if qdm_c[:, i].shape[0] != data['gcm_c'].shape[0]:
+                    raise ValueError(f"QDM output length mismatch for {data['var_names'][i]}")
             
         except Exception as e:
             print(f"Error processing variable {data['var_names'][i]}: {str(e)}")
