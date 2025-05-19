@@ -30,7 +30,10 @@ def install_r_packages():
     suppressPackageStartupMessages({{
         suppressMessages({{
             if(!dir.exists("{r_lib_path}")) dir.create("{r_lib_path}", recursive=TRUE)
-            .libPaths(c("{r_lib_path}", .libPaths()))
+            # Only keep existing library paths that contain packages
+            current_paths <- .libPaths()
+            valid_paths <- current_paths[sapply(current_paths, function(p) length(list.files(p)) > 0)]
+            .libPaths(c("{r_lib_path}", valid_paths))
         }})
     }})
     options(warn=0)
@@ -94,7 +97,15 @@ def run_mbc_methods(data):
     mbc = importr('MBC')
     r = ro.r
     
-    # Convert numpy arrays to R matrices
+    # Validate and convert numpy arrays to R matrices
+    print("Validating input data...")
+    for arr_name in ['gcm_c', 'rcm_c', 'gcm_p']:
+        arr = data[arr_name]
+        if np.any(np.isnan(arr)):
+            print(f"Warning: {arr_name} contains NaN values")
+        if np.any(np.isinf(arr)):
+            print(f"Warning: {arr_name} contains Inf values")
+    
     gcm_c_r = r.matrix(data['gcm_c'], nrow=data['gcm_c'].shape[0], ncol=data['gcm_c'].shape[1])
     rcm_c_r = r.matrix(data['rcm_c'], nrow=data['rcm_c'].shape[0], ncol=data['rcm_c'].shape[1])
     gcm_p_r = r.matrix(data['gcm_p'], nrow=data['gcm_p'].shape[0], ncol=data['gcm_p'].shape[1])
@@ -119,6 +130,7 @@ def run_mbc_methods(data):
         m_p_col = ro.FloatVector(data['gcm_p'][:, i])
         
         try:
+            print(f"Running QDM for {var} with trace={trace_r[i]}, ratio={ratio_seq_r[i]}")
             qdm = mbc.QDM(
                 o_c=o_c_col,
                 m_c=m_c_col,
@@ -129,6 +141,7 @@ def run_mbc_methods(data):
                 jitter_factor=0,
                 ties="first"
             )
+            print(f"QDM completed for {var}")
             
             # Check for NULL returns and handle empty results
             mhat_c = qdm.rx2('mhat_c')
@@ -337,9 +350,8 @@ def run_comparison():
         return
         
     try:
-        # Get absolute path to comparison script
-        script_path = os.path.join(os.path.dirname(__file__), 
-                                 "tests/compare_outputs.py")
+        # Get absolute path to comparison script (it's in the same directory)
+        script_path = os.path.join(os.path.dirname(__file__), "compare_outputs.py")
         subprocess.run([sys.executable, script_path], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error running comparison: {e}")
