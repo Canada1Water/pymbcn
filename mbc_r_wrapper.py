@@ -23,21 +23,23 @@ def install_r_packages():
         print(f"Creating R library directory: {r_lib_path}")
         os.makedirs(r_lib_path, exist_ok=True)
     
-    # Set library path and suppress warnings
+    # Set library path and suppress all messages
     ro.r(f'''
     options(warn=-1)
-    if(!dir.exists("{r_lib_path}")) dir.create("{r_lib_path}", recursive=TRUE)
-    .libPaths(c("{r_lib_path}", .libPaths()))
+    suppressMessages({{
+        if(!dir.exists("{r_lib_path}")) dir.create("{r_lib_path}", recursive=TRUE)
+        .libPaths(c("{r_lib_path}", .libPaths()))
+    }})
     options(warn=0)
     ''')
     
     # Check and install packages with better error handling
     required_pkgs = ['MBC', 'Matrix', 'energy', 'FNN']
-    installed = ro.packages.installed_packages()
+    installed = ro.packages.InstalledPackages()
     
     for pkg in required_pkgs:
         try:
-            if pkg not in installed:
+            if pkg not in installed.names:
                 print(f"Installing {pkg}...")
                 utils.install_packages(pkg, lib=r_lib_path, repos="https://cloud.r-project.org")
                 # Verify installation
