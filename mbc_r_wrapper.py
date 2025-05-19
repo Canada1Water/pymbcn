@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 import netCDF4
 import rpy2.robjects as ro
@@ -318,10 +319,32 @@ def save_results_to_netcdf(results, var_names, output_file):
 def run_comparison():
     """Run the comparison script"""
     print("\nRunning comparison between R and Python results...")
+    
+    # Wait for files to exist
+    max_attempts = 5
+    wait_seconds = 1
+    files_exist = False
+    
+    for attempt in range(max_attempts):
+        if (os.path.exists('python_corrected_output.nc') and 
+            os.path.exists('r_corrected_output.nc')):
+            files_exist = True
+            break
+        time.sleep(wait_seconds)
+    
+    if not files_exist:
+        print("Error: Required NetCDF files not found after waiting")
+        return
+        
     try:
-        subprocess.run([sys.executable, "tests/compare_outputs.py"], check=True)
+        # Get absolute path to comparison script
+        script_path = os.path.join(os.path.dirname(__file__), 
+                                 "tests/compare_outputs.py")
+        subprocess.run([sys.executable, script_path], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error running comparison: {e}")
+    except Exception as e:
+        print(f"Unexpected error running comparison: {e}")
 
 def main():
     # Setup R environment

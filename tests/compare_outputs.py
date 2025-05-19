@@ -4,8 +4,10 @@ import matplotlib.pyplot as plt
 from scipy.stats import linregress
 
 # --- Configuration ---
-PYTHON_NC_FILE = 'python_corrected_output.nc'
-R_NC_FILE = 'r_corrected_output.nc' # Ensure this file exists and has a similar structure
+# Use absolute paths to avoid file location issues
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PYTHON_NC_FILE = os.path.join(SCRIPT_DIR, 'python_corrected_output.nc') 
+R_NC_FILE = os.path.join(SCRIPT_DIR, 'r_corrected_output.nc')
 
 SETS = ['qdm', 'mbcr', 'mbcp', 'mbcn'] 
 VARIABLES = ['pr', 'tas', 'dtr', 'sfcWind', 'ps', 'huss', 'rsds', 'rlds']
