@@ -103,7 +103,7 @@ def main():
                             ax.set_xlim(data_min, data_max)
                             
                             # Regression line
-                            line_x = np.array([x_min, x_max])
+                            line_x = np.array([data_min, data_max])
                             line_y = intercept + slope * line_x
                             ax.plot(line_x, line_y, color='red', linestyle='--', linewidth=1)
                             
