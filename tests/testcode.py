@@ -69,25 +69,7 @@ qdm_p = np.zeros_like(gcm_p_data)
 
 print("Running Univariate QDM...")
 for i in range(n_vars):
-    current_debug_name_py = None
-    # Determine if this is the first ratio variable (precipitation)
-    # np.where(py_ratio_seq)[0] gives indices of TRUE values
-    # We want to debug if py_ratio_seq[i] is TRUE and i is the first such index
-    first_ratio_var_idx = -1
-    if np.any(py_ratio_seq):
-        first_ratio_var_idx = np.where(py_ratio_seq)[0][0]
-    
-    if py_ratio_seq[i] and i == first_ratio_var_idx:
-        current_debug_name_py = "pr_initial_qdm_mp_debug"
-    if variable_names[i] == "huss": # Check for huss
-        current_debug_name_py = "huss_qdm_debug"
-
     # QDM for control period:
-    # Determine debug name for mhat_c (specifically for huss if needed)
-    debug_name_mhat_c_py = None
-    if variable_names[i] == "huss": # Example: if you wanted specific debug for huss mhat_c
-        # debug_name_mhat_c_py = "huss_qdm_mhat_c_debug" # Currently no such specific debug in QDM
-        pass
 
     fit_qdm_c = QDM(o_c=rcm_c_data[:, i], m_c=gcm_c_data[:, i],
                    m_p=gcm_c_data[:, i],  # m_p is gcm_c_data for control period correction
@@ -96,8 +78,7 @@ for i in range(n_vars):
                    trace_calc=0.5 * py_trace_val[i], # Explicitly pass trace_calc
                    jitter_factor=0, 
                    ties='first',   
-                   pp_type='linear',
-                   debug_name=debug_name_mhat_c_py)
+                   pp_type='linear')
     qdm_c[:, i] = fit_qdm_c['mhat_c']
 
     # QDM for projection period (mhat_p is desired):
@@ -111,8 +92,7 @@ for i in range(n_vars):
                    trace_calc=current_trace_calc_for_p,
                    jitter_factor=0, 
                    ties='first',    
-                   pp_type='linear',
-                   debug_name=current_debug_name_py) # current_debug_name_py from earlier logic
+                   pp_type='linear')
     qdm_p[:, i] = fit_qdm_p['mhat_p']
 
     # Adaptive thresholding for ratio variables if correlation is low
@@ -137,8 +117,7 @@ for i in range(n_vars):
                                            trace_calc=adjusted_trace_calc_for_p,
                                            jitter_factor=0, 
                                            ties='first',    
-                                           pp_type='linear',
-                                           debug_name=current_debug_name_py)
+                                           pp_type='linear')
                     qdm_p[:, i] = fit_qdm_p_adjusted['mhat_p']
                     py_trace_val[i] = adjusted_trace_for_p # Update the list for subsequent MBC calls
             except Exception as e:
