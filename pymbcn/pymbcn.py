@@ -35,13 +35,9 @@ License:
     MIT License - See LICENSE file for details.
 """
 import numpy as np
-import scipy.stats as stats
-from scipy.linalg import cholesky, qr #solve is also from scipy.linalg
+from scipy.linalg import cholesky, qr, solve
 from sklearn.neighbors import NearestNeighbors
-from scipy.spatial.distance import cdist
-from scipy.linalg import solve # Explicit import
 from scipy.stats import rankdata
-import pandas as pd # Import pandas for describe() in diagnostics
 
 # Helper function for nearPD
 def _ensure_symmetric(A):
@@ -130,7 +126,7 @@ def nearPD(A, epsilon_eig=1e-6, chol_jitter_factor=1e-9, max_jitter_iter=10):
 
 def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
         jitter_factor=0, n_tau=None, ratio_max=2, ratio_max_trace=10*0.05,
-        ECBC=False, ties='first', subsample=None, pp_type='linear', debug_name=None): # Added debug_name
+        ECBC=False, ties='first', subsample=None, pp_type='linear'):
     """Quantile Delta Mapping bias correction"""
     
     o_c_arr = np.asarray(o_c).copy() # Work on copies
@@ -180,7 +176,6 @@ def QDM(o_c, m_c, m_p, ratio=False, trace=0.05, trace_calc=0.5*0.05,
             elif arr_name == 'm_c': m_c_arr += noise
             elif arr_name == 'm_p': m_p_arr += noise
 
-    m_p_after_runif_first_val_for_debug = np.nan # Initialize
     # Handle ratio data
     if ratio:
         epsilon = np.finfo(float).eps # A very small number
@@ -648,19 +643,12 @@ def MBCp(o_c, m_c, m_p, iter=20, cor_thresh=1e-4, ratio_seq=None, trace=0.05,
 
     if not qmap_precalc:
         for i in range(n_vars):
-            current_debug_name_py = None
-            # Check if this is the first ratio variable for QDM debugging
-            first_ratio_var_idx = -1
-            if np.any(ratio_seq_list):
-                first_ratio_var_idx = np.where(ratio_seq_list)[0][0]
-            # Removed current_debug_name_py logic, pass debug_name=None or remove if not needed by QDM
-            
             fit_qmap = QDM(o_c_arr[:,i], m_c_qmap_initial_orig_mc[:,i], m_p_qmap_initial_orig_mp[:,i], 
                           ratio=ratio_seq_list[i], trace_calc=trace_calc_list[i],
                           trace=trace_list[i], jitter_factor=jitter_factor_list[i], # Use per-var jitter
                           n_tau=n_tau, ratio_max=ratio_max_list[i],
                           ratio_max_trace=ratio_max_trace_list[i],
-                          subsample=subsample, pp_type=pp_type, ties=ties) # Removed debug_name
+                          subsample=subsample, pp_type=pp_type, ties=ties)
             m_c_after_initial_qdm[:,i] = fit_qmap['mhat_c']
             m_p_after_initial_qdm[:,i] = fit_qmap['mhat_p']
     else: # If qmap_precalc is True, assume m_c_arr and m_p_arr are already QDM'd
